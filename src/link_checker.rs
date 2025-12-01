@@ -288,10 +288,11 @@ fn check_internal_link(
 
     // Also try with trailing slash (some links may have it)
     let without_slash = target_route.trim_end_matches('/');
-    if !without_slash.is_empty() && without_slash != target_route {
-        if known_routes.contains(without_slash) {
-            return None;
-        }
+    if !without_slash.is_empty()
+        && without_slash != target_route
+        && known_routes.contains(without_slash)
+    {
+        return None;
     }
     // Also try without trailing slash
     let with_slash = format!("{}/", target_route.trim_end_matches('/'));
