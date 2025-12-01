@@ -112,7 +112,7 @@ fontcull-klippa = "0.1"
 fontcull-skrifa = "0.39"
 fontcull-read-fonts = "0.36"
 fontcull-write-fonts = "0.44"
-woofwoof = "1"  # WOFF2 compression (pure Rust brotli)
+woofwoof = { git = "https://github.com/bearcove/woofwoof" }  # WOFF2 compression (pure Rust brotli)
 
 # OG image generation (Typst → SVG/PNG)
 typst = "0.14"
