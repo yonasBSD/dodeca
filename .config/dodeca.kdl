@@ -1,0 +1,5 @@
+content "docs/content"
+output "docs/public"
+
+link_check {
+}
