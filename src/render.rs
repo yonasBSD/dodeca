@@ -1,7 +1,9 @@
 use crate::db::{Heading, Page, Section, SiteTree};
 use crate::template::{Context, Engine, InMemoryLoader, Value};
 use crate::types::Route;
-use std::collections::HashMap;
+use regex::Regex;
+use std::collections::{HashMap, HashSet};
+use std::sync::LazyLock;
 
 /// Options for rendering
 #[derive(Default, Clone, Copy)]
@@ -12,9 +14,129 @@ pub struct RenderOptions {
     pub dev_mode: bool,
 }
 
-/// Inject livereload script if enabled
-pub fn inject_livereload(html: &str, options: RenderOptions) -> String {
+/// Regex to extract href attributes from anchor tags (for dead link detection)
+static HREF_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"<a\s([^>]*)href=["']([^"']+)["']([^>]*)>"#).unwrap());
+
+/// CSS for dead link highlighting in dev mode
+const DEAD_LINK_STYLES: &str = r#"<style>
+a[data-dead] {
+    background: linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%) !important;
+    color: #fff !important;
+    padding: 0.1em 0.3em !important;
+    border-radius: 3px !important;
+    text-decoration: line-through wavy !important;
+    animation: dead-link-pulse 1.5s ease-in-out infinite !important;
+    cursor: not-allowed !important;
+}
+@keyframes dead-link-pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.7); }
+    50% { opacity: 0.8; box-shadow: 0 0 0 4px rgba(255, 107, 107, 0); }
+}
+a[data-dead]:hover::after {
+    content: " (dead link: " attr(data-dead) ")";
+    font-size: 0.75em;
+    opacity: 0.9;
+}
+</style>"#;
+
+/// Mark dead internal links in HTML by adding data-dead attribute
+fn mark_dead_links(html: &str, known_routes: &HashSet<String>) -> String {
+    HREF_REGEX.replace_all(html, |caps: &regex::Captures| {
+        let before = &caps[1];
+        let href = &caps[2];
+        let after = &caps[3];
+
+        // Check if this is an internal link that we should validate
+        if href.starts_with("http://") || href.starts_with("https://")
+            || href.starts_with('#')
+            || href.starts_with("mailto:")
+            || href.starts_with("tel:")
+            || href.starts_with("javascript:")
+            || href.starts_with("/__") // dev server internal routes
+        {
+            // External or special link - leave unchanged
+            return format!(r#"<a {before}href="{href}"{after}>"#);
+        }
+
+        // Check if it looks like a static file
+        let static_extensions = [
+            ".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico",
+            ".woff", ".woff2", ".ttf", ".eot", ".pdf", ".zip", ".tar", ".gz",
+            ".webp", ".jxl", ".xml", ".txt", ".md", ".wasm",
+        ];
+        if static_extensions.iter().any(|ext| href.ends_with(ext)) {
+            return format!(r#"<a {before}href="{href}"{after}>"#);
+        }
+
+        // Normalize the route for checking
+        let (path, _fragment) = match href.find('#') {
+            Some(idx) => (&href[..idx], Some(&href[idx + 1..])),
+            None => (href, None),
+        };
+
+        // Empty path means same-page anchor
+        if path.is_empty() {
+            return format!(r#"<a {before}href="{href}"{after}>"#);
+        }
+
+        // Normalize the target route
+        let target_route = if path.starts_with('/') {
+            normalize_route(path)
+        } else {
+            // For relative links, we can't resolve without knowing current page
+            // So we skip validation for relative links for now
+            return format!(r#"<a {before}href="{href}"{after}>"#);
+        };
+
+        // Check if route exists
+        let route_exists = known_routes.contains(&target_route)
+            || known_routes.contains(&format!("{}/", target_route.trim_end_matches('/')))
+            || known_routes.contains(target_route.trim_end_matches('/'));
+
+        if route_exists {
+            format!(r#"<a {before}href="{href}"{after}>"#)
+        } else {
+            // Dead link! Add data-dead attribute
+            format!(r#"<a {before}href="{href}" data-dead="{target_route}"{after}>"#)
+        }
+    }).to_string()
+}
+
+/// Normalize a route path (handle .. and ., ensure leading slash, no trailing slash except root)
+fn normalize_route(path: &str) -> String {
+    let mut parts: Vec<&str> = Vec::new();
+
+    for part in path.split('/') {
+        match part {
+            "" | "." => {}
+            ".." => {
+                parts.pop();
+            }
+            p => parts.push(p),
+        }
+    }
+
+    if parts.is_empty() {
+        "/".to_string()
+    } else {
+        format!("/{}", parts.join("/"))
+    }
+}
+
+/// Inject livereload script and optionally mark dead links
+pub fn inject_livereload(html: &str, options: RenderOptions, known_routes: Option<&HashSet<String>>) -> String {
+    let mut result = html.to_string();
+
+    // Mark dead links if we have known routes (dev mode)
+    if let Some(routes) = known_routes {
+        result = mark_dead_links(&result, routes);
+    }
+
     if options.livereload {
+        // Inject dead link styles in dev mode
+        let styles = if known_routes.is_some() { DEAD_LINK_STYLES } else { "" };
+
         // WASM-powered livereload client:
         // - Loads WASM module for DOM patching
         // - Binary WebSocket messages = patches (apply via WASM)
@@ -72,10 +194,10 @@ pub fn inject_livereload(html: &str, options: RenderOptions) -> String {
     connect();
 })();
 </script>"##;
-        // Inject after <html> - always present even after minification
-        html.replacen("<html", &format!("{livereload_script}<html"), 1)
+        // Inject styles and script after <html> - always present even after minification
+        result.replacen("<html", &format!("{styles}{livereload_script}<html"), 1)
     } else {
-        html.to_string()
+        result
     }
 }
 

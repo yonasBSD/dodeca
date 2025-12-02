@@ -204,10 +204,13 @@ mod tests {
             output "public/"
             link_check {
             }
+            stable_assets {
+            }
         "#;
 
         let config: DodecaConfig = kdl::from_str(kdl).unwrap();
         assert_eq!(config.content.path, "docs/");
         assert_eq!(config.output.path, "public/");
+        assert!(config.stable_assets.paths.is_empty());
     }
 }

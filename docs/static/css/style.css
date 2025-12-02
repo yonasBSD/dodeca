@@ -88,9 +88,28 @@ body {
     flex-shrink: 0;
 }
 
-.site-nav-search {
+.site-nav-links {
+    display: flex;
+    gap: 1.5rem;
+}
+
+.site-nav-links a {
+    color: var(--muted);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s;
+}
+
+.site-nav-links a:hover {
+    color: var(--fg);
+}
+
+.site-nav-spacer {
     flex: 1;
-    max-width: 400px;
+}
+
+.site-nav-search {
+    width: 300px;
     position: relative;
 }
 

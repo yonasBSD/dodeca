@@ -647,8 +647,8 @@ pub fn build(
                     ));
                 }
 
-                // Apply livereload injection if needed
-                let final_html = inject_livereload(content, render_options);
+                // Apply livereload injection if needed (no dead link checking in build mode)
+                let final_html = inject_livereload(content, render_options, None);
                 let path = route_to_path(output_dir, route);
 
                 if store.write_if_changed(&path, final_html.as_bytes())? {
@@ -923,7 +923,7 @@ fn build_with_mini_tui(
                     ));
                 }
 
-                let final_html = inject_livereload(content, render_options);
+                let final_html = inject_livereload(content, render_options, None);
                 let path = route_to_path(output_dir, route);
 
                 if store.write_if_changed(&path, final_html.as_bytes())? {
