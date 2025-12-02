@@ -1290,13 +1290,19 @@ async fn serve_plain(
                 continue;
             }
 
+            // React to modify/create/rename events (rename catches atomic saves)
             use notify::EventKind;
             match event.kind {
                 EventKind::Modify(_) | EventKind::Create(_) => {
+                    // Filter out temp files (editors write to .tmp then rename)
                     let paths: Vec<Utf8PathBuf> = event
                         .paths
                         .iter()
                         .filter(|p| {
+                            let path_str = p.to_string_lossy();
+                            if path_str.contains(".tmp.") || path_str.ends_with("~") {
+                                return false;
+                            }
                             let is_known_ext = p.extension()
                                 .map(|e| e == "md" || e == "scss" || e == "html")
                                 .unwrap_or(false);
@@ -1840,15 +1846,21 @@ async fn serve_with_tui(
                         continue;
                     }
 
-                    // Only react to modify/create events
+                    // React to modify/create/rename events (rename catches atomic saves)
                     use notify::EventKind;
                     match event.kind {
                         EventKind::Modify(_) | EventKind::Create(_) => {
                             // Accept content/template/sass files by extension, or any file in static dir
+                            // Filter out temp files (editors write to .tmp then rename)
                             let paths: Vec<Utf8PathBuf> = event
                                 .paths
                                 .iter()
                                 .filter(|p| {
+                                    // Skip temp files created by editors
+                                    let path_str = p.to_string_lossy();
+                                    if path_str.contains(".tmp.") || path_str.ends_with("~") {
+                                        return false;
+                                    }
                                     let is_known_ext = p.extension()
                                         .map(|e| e == "md" || e == "scss" || e == "html")
                                         .unwrap_or(false);
@@ -1944,7 +1956,6 @@ async fn serve_with_tui(
                                             // Find existing static file and update it
                                             let relative_str = relative.to_string();
                                             tracing::debug!("Looking for static file: {relative_str}");
-                                            let mut found = false;
                                             for static_file in static_files.iter() {
                                                 let stored_path = static_file.path(&*db).as_str().to_string();
                                                 if stored_path == relative_str {
@@ -1953,16 +1964,8 @@ async fn serve_with_tui(
                                                     static_file
                                                         .set_content(&mut *db)
                                                         .to(content.clone());
-                                                    found = true;
                                                     break;
                                                 }
-                                            }
-                                            if !found {
-                                                let available: Vec<_> = static_files.iter()
-                                                    .map(|f| f.path(&*db).as_str().to_string())
-                                                    .collect();
-                                                tracing::warn!("Static file not found in registry: {relative_str}");
-                                                tracing::debug!("Available static files: {:?}", available);
                                             }
                                         }
                                     }
