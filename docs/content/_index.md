@@ -3,7 +3,7 @@ title = "dodeca"
 description = "A fully incremental static site generator"
 +++
 
-A fully incremental static site generator built with Rust.
+A fully incremental static site generator built with Rust. Now with LIVE PATCHING!
 
 ## Contents
 
@@ -16,8 +16,9 @@ A fully incremental static site generator built with Rust.
 ## Features
 
 - **Incremental builds** via [Salsa](https://salsa-rs.github.io/salsa/) - only rebuild what changed
-- **Font subsetting** - only include glyphs actually used on your site
-- **OG image generation** with Typst - beautiful social cards automatically
+- **DOM patching** - no full reload, just surgical DOM updates via WASM
+- **Font subsetting** - only include glyphs actually used on your site (saves TONS of bandwidth!)
+- **OG image generation** with Typst - gorgeous social cards, zero effort
 - **Live-reload dev server** - instant feedback while editing
 - **Jinja-like template engine** - familiar syntax, zero serde
 - **Sass/SCSS compilation** - modern CSS workflow built-in

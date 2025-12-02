@@ -13,6 +13,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
+
 use color_eyre::Result;
 use futures_util::{SinkExt, StreamExt};
 use std::collections::HashMap;
@@ -30,6 +31,66 @@ use crate::render::{RenderOptions, inject_livereload};
 use crate::types::Route;
 use crate::image::{InputFormat, OutputFormat, add_width_suffix};
 
+/// Message types for livereload WebSocket
+#[derive(Clone, Debug)]
+pub enum LiveReloadMsg {
+    /// Full page reload (fallback)
+    Reload,
+    /// Patches for a specific route (serialized with postcard)
+    Patches { route: String, data: Vec<u8> },
+}
+
+/// Summarize patch operations for logging
+fn summarize_patches(patches: &[crate::html_diff::Patch]) -> String {
+    use crate::html_diff::Patch;
+
+    let mut replace = 0;
+    let mut insert = 0;
+    let mut remove = 0;
+    let mut set_text = 0;
+    let mut set_attr = 0;
+    let mut remove_attr = 0;
+
+    for patch in patches {
+        match patch {
+            Patch::Replace { .. } => replace += 1,
+            Patch::InsertBefore { .. } | Patch::InsertAfter { .. } | Patch::AppendChild { .. } => {
+                insert += 1
+            }
+            Patch::Remove { .. } => remove += 1,
+            Patch::SetText { .. } => set_text += 1,
+            Patch::SetAttribute { .. } => set_attr += 1,
+            Patch::RemoveAttribute { .. } => remove_attr += 1,
+        }
+    }
+
+    let mut parts = Vec::new();
+    if replace > 0 {
+        parts.push(format!("{} replace", replace));
+    }
+    if insert > 0 {
+        parts.push(format!("{} insert", insert));
+    }
+    if remove > 0 {
+        parts.push(format!("{} remove", remove));
+    }
+    if set_text > 0 {
+        parts.push(format!("{} text", set_text));
+    }
+    if set_attr > 0 {
+        parts.push(format!("{} attr", set_attr));
+    }
+    if remove_attr > 0 {
+        parts.push(format!("{} -attr", remove_attr));
+    }
+
+    if parts.is_empty() {
+        "no ops".to_string()
+    } else {
+        parts.join(", ")
+    }
+}
+
 /// Shared state for the dev server
 pub struct SiteServer {
     /// The Salsa database - all queries go through here
@@ -46,9 +107,11 @@ pub struct SiteServer {
     /// Search index files (pagefind): path -> content
     pub search_files: RwLock<HashMap<String, Vec<u8>>>,
     /// Live reload broadcast
-    pub livereload_tx: broadcast::Sender<()>,
+    pub livereload_tx: broadcast::Sender<LiveReloadMsg>,
     /// Render options (dev mode, etc.)
     pub render_options: RenderOptions,
+    /// Cached HTML for each route (for computing patches)
+    html_cache: RwLock<HashMap<String, String>>,
 }
 
 impl SiteServer {
@@ -63,12 +126,123 @@ impl SiteServer {
             search_files: RwLock::new(HashMap::new()),
             livereload_tx,
             render_options,
+            html_cache: RwLock::new(HashMap::new()),
         }
     }
 
     /// Notify all connected browsers to reload
+    /// Computes patches for all cached routes and sends them
     pub fn trigger_reload(&self) {
-        let _ = self.livereload_tx.send(());
+        use crate::html_diff::{parse_html, diff, serialize_patches};
+
+        // Get all cached routes and compute patches
+        let cached_routes: Vec<String> = {
+            let cache = self.html_cache.read().unwrap();
+            cache.keys().cloned().collect()
+        };
+
+        if cached_routes.is_empty() {
+            tracing::info!("🔄 No cached routes, sending full reload");
+            let _ = self.livereload_tx.send(LiveReloadMsg::Reload);
+            return;
+        }
+
+        let mut any_changed = false;
+        for route in cached_routes {
+            // Get old HTML from cache
+            let old_html = {
+                let cache = self.html_cache.read().unwrap();
+                cache.get(&route).cloned()
+            };
+
+            // Get new HTML (re-render)
+            let new_html = self.find_content(&route).and_then(|c| match c {
+                ServeContent::Html(html) => Some(html),
+                _ => None,
+            });
+
+            if let (Some(old), Some(new)) = (old_html, new_html.clone()) {
+                if old != new {
+                    any_changed = true;
+
+                    // Update cache
+                    {
+                        let mut cache = self.html_cache.write().unwrap();
+                        if let Some(html) = &new_html {
+                            cache.insert(route.clone(), html.clone());
+                        }
+                    }
+
+                    // Try to parse both DOMs
+                    let old_dom = parse_html(&old);
+                    let new_dom = parse_html(&new);
+
+                    match (old_dom, new_dom) {
+                        (Some(old_dom), Some(new_dom)) => {
+                            let diff_result = diff(&old_dom, &new_dom);
+
+                            if diff_result.patches.is_empty() {
+                                // DOM structure identical but HTML differs (whitespace/comments?)
+                                tracing::info!(
+                                    "🔄 {} - HTML changed but DOM identical, full reload",
+                                    route
+                                );
+                                let _ = self.livereload_tx.send(LiveReloadMsg::Reload);
+                            } else {
+                                // Summarize patch operations
+                                let summary = summarize_patches(&diff_result.patches);
+
+                                match serialize_patches(&diff_result.patches) {
+                                    Ok(data) => {
+                                        tracing::info!(
+                                            "✨ {} - patching: {} ({} bytes)",
+                                            route, summary, data.len()
+                                        );
+                                        let _ = self.livereload_tx.send(LiveReloadMsg::Patches {
+                                            route: route.clone(),
+                                            data,
+                                        });
+                                    }
+                                    Err(e) => {
+                                        tracing::warn!(
+                                            "🔄 {} - patch serialization failed: {}, full reload",
+                                            route, e
+                                        );
+                                        let _ = self.livereload_tx.send(LiveReloadMsg::Reload);
+                                    }
+                                }
+                            }
+                        }
+                        (None, _) => {
+                            tracing::warn!(
+                                "🔄 {} - failed to parse old HTML, full reload",
+                                route
+                            );
+                            let _ = self.livereload_tx.send(LiveReloadMsg::Reload);
+                        }
+                        (_, None) => {
+                            tracing::warn!(
+                                "🔄 {} - failed to parse new HTML, full reload",
+                                route
+                            );
+                            let _ = self.livereload_tx.send(LiveReloadMsg::Reload);
+                        }
+                    }
+                }
+            }
+        }
+
+        // If nothing changed, send a generic reload (for static assets, etc.)
+        if !any_changed {
+            tracing::info!("🔄 No HTML changes detected, refreshing for static assets");
+            let _ = self.livereload_tx.send(LiveReloadMsg::Reload);
+        }
+    }
+
+    /// Cache HTML for a route (called when serving pages)
+    fn cache_html(&self, route: &str, html: &str) {
+        let mut cache = self.html_cache.write().unwrap();
+        cache.insert(route.to_string(), html.to_string());
     }
 
     /// Load cached query results from disk
@@ -255,12 +429,16 @@ async fn content_handler(State(server): State<Arc<SiteServer>>, request: Request
     // Try to serve from build_site output (HTML, CSS, static files - all cache-busted)
     if let Some(content) = server.find_content(path) {
         return match content {
-            ServeContent::Html(html) => Response::builder()
-                .status(StatusCode::OK)
-                .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
-                .header(header::CACHE_CONTROL, CACHE_NO_CACHE)
-                .body(Body::from(html))
-                .unwrap(),
+            ServeContent::Html(html) => {
+                // Cache HTML for smart reload patching
+                server.cache_html(path, &html);
+                Response::builder()
+                    .status(StatusCode::OK)
+                    .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+                    .header(header::CACHE_CONTROL, CACHE_NO_CACHE)
+                    .body(Body::from(html))
+                    .unwrap()
+            }
             ServeContent::Css(css) => Response::builder()
                 .status(StatusCode::OK)
                 .header(header::CONTENT_TYPE, "text/css; charset=utf-8")
@@ -292,6 +470,11 @@ async fn handle_livereload_socket(socket: WebSocket, server: Arc<SiteServer>) {
     let (mut sender, mut receiver) = socket.split();
     let mut reload_rx = server.livereload_tx.subscribe();
 
+    // Track the current route this client is viewing
+    let mut current_route: Option<String> = None;
+
+    tracing::info!("🔌 Browser connected for live reload");
+
     // Send initial connection confirmation
     let _ = sender.send(Message::Text("connected".into())).await;
 
@@ -299,9 +482,18 @@ async fn handle_livereload_socket(socket: WebSocket, server: Arc<SiteServer>) {
         tokio::select! {
             result = reload_rx.recv() => {
                 match result {
-                    Ok(()) => {
+                    Ok(LiveReloadMsg::Reload) => {
                         if sender.send(Message::Text("reload".into())).await.is_err() {
                             break;
+                        }
+                    }
+                    Ok(LiveReloadMsg::Patches { route, data }) => {
+                        // Only send patches if client is viewing this route
+                        // (or if we don't know their route yet, send anyway)
+                        if current_route.as_ref().map_or(true, |r| r == &route) {
+                            if sender.send(Message::Binary(data.into())).await.is_err() {
+                                break;
+                            }
                         }
                     }
                     Err(_) => break,
@@ -315,15 +507,26 @@ async fn handle_livereload_socket(socket: WebSocket, server: Arc<SiteServer>) {
                             break;
                         }
                     }
+                    Some(Ok(Message::Text(text))) => {
+                        // Client can send its current route
+                        if text.starts_with("route:") {
+                            let route = text[6..].to_string();
+                            tracing::info!("🔌 Browser viewing {}", route);
+                            current_route = Some(route);
+                        }
+                    }
                     _ => {}
                 }
             }
         }
     }
+
+    tracing::info!("🔌 Browser disconnected");
 }
 
 /// Middleware to log HTTP requests with status code and latency
 async fn log_requests(request: Request, next: Next) -> Response {
+    let method = request.method().to_string();
     let path = request.uri().path().to_string();
     let start = Instant::now();
 
@@ -332,21 +535,46 @@ async fn log_requests(request: Request, next: Next) -> Response {
     let status = response.status().as_u16();
     let latency_ms = start.elapsed().as_secs_f64() * 1000.0;
 
+    // Format: "METHOD /path -> STATUS in TIMEms" for highlight_message parser
     if status >= 500 {
-        tracing::error!("{} {} {:.1}ms", status, path, latency_ms);
+        tracing::error!("{} {} -> {} in {:.1}ms", method, path, status, latency_ms);
     } else if status >= 400 {
-        tracing::warn!("{} {} {:.1}ms", status, path, latency_ms);
+        tracing::warn!("{} {} -> {} in {:.1}ms", method, path, status, latency_ms);
     } else {
-        tracing::info!("{} {} {:.1}ms", status, path, latency_ms);
+        tracing::info!("{} {} -> {} in {:.1}ms", method, path, status, latency_ms);
     }
 
     response
+}
+
+/// Embedded WASM client files (built by build.rs)
+const LIVERELOAD_JS: &str = include_str!("../crates/livereload-client/pkg/livereload_client.js");
+const LIVERELOAD_WASM: &[u8] = include_bytes!("../crates/livereload-client/pkg/livereload_client_bg.wasm");
+
+/// Handler for livereload WASM JS module
+async fn livereload_js_handler() -> Response {
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "application/javascript")
+        .body(Body::from(LIVERELOAD_JS))
+        .unwrap()
+}
+
+/// Handler for livereload WASM binary
+async fn livereload_wasm_handler() -> Response {
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "application/wasm")
+        .body(Body::from(LIVERELOAD_WASM.to_vec()))
+        .unwrap()
 }
 
 /// Build the axum router
 pub fn build_router(server: Arc<SiteServer>) -> Router {
     Router::new()
         .route("/__livereload", get(livereload_handler))
+        .route("/__livereload.js", get(livereload_js_handler))
+        .route("/__livereload.wasm", get(livereload_wasm_handler))
         .fallback(content_handler)
         .with_state(server)
         .layer(middleware::from_fn(log_requests))

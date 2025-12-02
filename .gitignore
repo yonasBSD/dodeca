@@ -2,3 +2,4 @@
 .dodeca.db/
 /docs/public/
 .cache/
+bloaty_report*

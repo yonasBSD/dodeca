@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "crates/livereload-client"]
+members = [".", "crates/livereload-client", "xtask"]
 
 [package]
 name = "dodeca"
@@ -158,6 +158,10 @@ harness = false
 # (keeps main crate unoptimized for fast incremental builds)
 [profile.dev.package."*"]
 opt-level = 2
+
+# Reduce debug info size (line tables only, no variable info)
+[profile.dev]
+debug = "line-tables-only"
 
 # The profile that 'dist' will build with
 [profile.dist]

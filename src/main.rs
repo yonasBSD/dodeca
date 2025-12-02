@@ -15,6 +15,7 @@ mod search;
 mod serve;
 mod svg;
 mod template;
+mod theme;
 mod tui;
 mod types;
 mod url_rewrite;
@@ -1880,13 +1881,25 @@ async fn serve_with_tui(
                             }
 
                             for path in &paths {
-                                let _ = event_tx_for_watcher.send(LogEvent::info(format!(
-                                    "Changed: {}",
-                                    path.file_name().unwrap_or("?")
-                                )));
+                                // Determine file type and emoji
+                                let ext = path.extension();
+                                let filename = path.file_name().unwrap_or("?");
+                                let (emoji, file_type) = match ext {
+                                    Some("md") => ("📄", "content"),
+                                    Some("html") => ("🎨", "template"),
+                                    Some("scss") | Some("sass") => ("💅", "style"),
+                                    Some("css") => ("💅", "css"),
+                                    Some("js") | Some("ts") => ("📜", "script"),
+                                    Some("png") | Some("jpg") | Some("jpeg") | Some("gif") | Some("svg") | Some("webp") | Some("avif") => ("🖼️", "image"),
+                                    Some("woff") | Some("woff2") | Some("ttf") | Some("otf") => ("🔤", "font"),
+                                    _ => ("📁", "file"),
+                                };
+                                let _ = event_tx_for_watcher.send(
+                                    LogEvent::file_change(format!("{} {} changed: {}", emoji, file_type, filename))
+                                );
 
                                 // Update the file in the server's Salsa database
-                                if path.extension() == Some("md") {
+                                if ext == Some("md") {
                                     if let Ok(relative) = path.strip_prefix(&content_for_watcher) {
                                         if let Ok(content) = fs::read_to_string(path) {
                                             let mut db = server_for_watcher.db.lock().unwrap();
@@ -1906,7 +1919,7 @@ async fn serve_with_tui(
                                             }
                                         }
                                     }
-                                } else if path.extension() == Some("html") {
+                                } else if ext == Some("html") {
                                     if let Ok(relative) =
                                         path.strip_prefix(&templates_dir_for_watcher)
                                     {
@@ -1928,9 +1941,7 @@ async fn serve_with_tui(
                                             }
                                         }
                                     }
-                                } else if path.extension() == Some("scss")
-                                    || path.extension() == Some("sass")
-                                {
+                                } else if ext == Some("scss") || ext == Some("sass") {
                                     if let Ok(relative) = path.strip_prefix(&sass_dir_for_watcher) {
                                         if let Ok(content) = fs::read_to_string(path) {
                                             let mut db = server_for_watcher.db.lock().unwrap();
@@ -1982,8 +1993,8 @@ async fn serve_with_tui(
                             }
 
                             // Trigger live reload - browsers will re-fetch and get fresh content from Salsa
+                            // (trigger_reload logs detailed patch/reload decisions)
                             server_for_watcher.trigger_reload();
-                            let _ = event_tx_for_watcher.send(LogEvent::info("Reload triggered"));
 
                             // Rebuild search index in background (debounced with live reload)
                             let server_for_search = server_for_watcher.clone();
@@ -1995,14 +2006,15 @@ async fn serve_with_tui(
                                         let mut sf =
                                             server_for_search.search_files.write().unwrap();
                                         *sf = search_files;
-                                        let _ = event_tx_for_search.send(LogEvent::info(format!(
-                                            "Search index updated ({count} files)"
-                                        )));
+                                        let _ = event_tx_for_search.send(
+                                            LogEvent::search(format!("🔍 Search index updated ({count} pages indexed)"))
+                                        );
                                     }
                                     Err(e) => {
-                                        let _ = event_tx_for_search.send(LogEvent::error(format!(
-                                            "Search rebuild error: {e}"
-                                        )));
+                                        let _ = event_tx_for_search.send(
+                                            LogEvent::error(format!("🔍 Search rebuild failed: {e}"))
+                                                .with_kind(crate::tui::EventKind::Search)
+                                        );
                                     }
                                 }
                             });

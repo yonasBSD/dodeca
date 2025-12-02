@@ -15,20 +15,52 @@ pub struct RenderOptions {
 /// Inject livereload script if enabled
 pub fn inject_livereload(html: &str, options: RenderOptions) -> String {
     if options.livereload {
-        let livereload_script = r##"<script>
-(function() {
+        // WASM-powered livereload client:
+        // - Loads WASM module for DOM patching
+        // - Binary WebSocket messages = patches (apply via WASM)
+        // - Text "reload" message = full page reload (fallback)
+        let livereload_script = r##"<script type="module">
+(async function() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = protocol + '//' + window.location.host + '/__livereload';
     let ws;
     let reconnectTimer;
+    let applyPatches = null;
+
+    // Load WASM module
+    try {
+        const { default: init, apply_patches } = await import('/__livereload.js');
+        await init('/__livereload.wasm');
+        applyPatches = apply_patches;
+        console.log('[livereload] WASM loaded, smart reload enabled');
+    } catch (e) {
+        console.warn('[livereload] WASM not available, using full reload:', e);
+    }
 
     function connect() {
         ws = new WebSocket(wsUrl);
-        ws.onopen = function() { console.log('[livereload] connected'); };
-        ws.onmessage = function(event) {
-            if (event.data === 'reload') {
-                console.log('[livereload] reloading...');
-                window.location.reload();
+        ws.binaryType = 'arraybuffer';
+        ws.onopen = function() {
+            console.log('[livereload] connected');
+            // Tell server which route we're viewing
+            ws.send('route:' + window.location.pathname);
+        };
+        ws.onmessage = async function(event) {
+            if (typeof event.data === 'string') {
+                if (event.data === 'reload') {
+                    console.log('[livereload] full reload');
+                    window.location.reload();
+                }
+            } else if (event.data instanceof ArrayBuffer && applyPatches) {
+                // Binary message = patches
+                try {
+                    const bytes = new Uint8Array(event.data);
+                    const count = applyPatches(bytes);
+                    console.log('[livereload] applied', count, 'patches');
+                } catch (e) {
+                    console.error('[livereload] patch error, falling back to reload:', e);
+                    window.location.reload();
+                }
             }
         };
         ws.onclose = function() {

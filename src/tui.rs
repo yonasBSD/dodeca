@@ -147,10 +147,74 @@ pub enum LogLevel {
     Error,
 }
 
-/// A log event with level and message
+/// Kind of activity event (for display styling)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum EventKind {
+    /// HTTP request (GET, POST, etc.)
+    Http { status: u16 },
+    /// File system change
+    FileChange,
+    /// Live reload triggered
+    Reload,
+    /// DOM patches sent
+    Patch,
+    /// Search index update
+    Search,
+    /// Server status
+    Server,
+    /// Salsa/build related
+    Build,
+    /// Generic info
+    #[default]
+    Generic,
+}
+
+impl EventKind {
+    /// Symbol for this event kind
+    pub fn symbol(&self) -> &'static str {
+        match self {
+            EventKind::Http { status } => {
+                if *status >= 500 {
+                    "⚠"  // server error
+                } else if *status >= 400 {
+                    "✗"  // client error
+                } else if *status >= 300 {
+                    "↪"  // redirect
+                } else {
+                    "→"  // success
+                }
+            }
+            EventKind::FileChange => "📝",
+            EventKind::Reload => "🔄",
+            EventKind::Patch => "✨",
+            EventKind::Search => "🔍",
+            EventKind::Server => "🌐",
+            EventKind::Build => "🔨",
+            EventKind::Generic => "•",
+        }
+    }
+
+    /// Color for this event kind (Tokyo Night palette)
+    pub fn color(&self) -> Color {
+        use crate::theme;
+        match self {
+            EventKind::Http { status } => theme::http_status_color(*status),
+            EventKind::FileChange => theme::ORANGE,
+            EventKind::Reload => theme::YELLOW,
+            EventKind::Patch => theme::GREEN,
+            EventKind::Search => theme::CYAN,
+            EventKind::Server => theme::BLUE,
+            EventKind::Build => theme::PURPLE,
+            EventKind::Generic => theme::FG_DARK,
+        }
+    }
+}
+
+/// A log event with level, kind, and message
 #[derive(Debug, Clone)]
 pub struct LogEvent {
     pub level: LogLevel,
+    pub kind: EventKind,
     pub message: String,
 }
 
@@ -158,6 +222,7 @@ impl LogEvent {
     pub fn info(message: impl Into<String>) -> Self {
         Self {
             level: LogLevel::Info,
+            kind: EventKind::Generic,
             message: message.into(),
         }
     }
@@ -165,6 +230,7 @@ impl LogEvent {
     pub fn warn(message: impl Into<String>) -> Self {
         Self {
             level: LogLevel::Warn,
+            kind: EventKind::Generic,
             message: message.into(),
         }
     }
@@ -172,6 +238,69 @@ impl LogEvent {
     pub fn error(message: impl Into<String>) -> Self {
         Self {
             level: LogLevel::Error,
+            kind: EventKind::Generic,
+            message: message.into(),
+        }
+    }
+
+    pub fn with_kind(mut self, kind: EventKind) -> Self {
+        self.kind = kind;
+        self
+    }
+
+    // Convenience constructors for specific event types
+    pub fn http(status: u16, message: impl Into<String>) -> Self {
+        Self {
+            level: if status >= 400 { LogLevel::Warn } else { LogLevel::Info },
+            kind: EventKind::Http { status },
+            message: message.into(),
+        }
+    }
+
+    pub fn file_change(message: impl Into<String>) -> Self {
+        Self {
+            level: LogLevel::Info,
+            kind: EventKind::FileChange,
+            message: message.into(),
+        }
+    }
+
+    pub fn reload(message: impl Into<String>) -> Self {
+        Self {
+            level: LogLevel::Info,
+            kind: EventKind::Reload,
+            message: message.into(),
+        }
+    }
+
+    pub fn patch(message: impl Into<String>) -> Self {
+        Self {
+            level: LogLevel::Info,
+            kind: EventKind::Patch,
+            message: message.into(),
+        }
+    }
+
+    pub fn search(message: impl Into<String>) -> Self {
+        Self {
+            level: LogLevel::Info,
+            kind: EventKind::Search,
+            message: message.into(),
+        }
+    }
+
+    pub fn server(message: impl Into<String>) -> Self {
+        Self {
+            level: LogLevel::Info,
+            kind: EventKind::Server,
+            message: message.into(),
+        }
+    }
+
+    pub fn build(message: impl Into<String>) -> Self {
+        Self {
+            level: LogLevel::Info,
+            kind: EventKind::Build,
             message: message.into(),
         }
     }
@@ -299,6 +428,91 @@ pub struct ServeApp {
 /// Maximum number of events to keep in the buffer
 const MAX_EVENTS: usize = 100;
 
+/// Highlight paths, URLs, HTTP methods, and timings in a log message
+fn highlight_message(msg: &str, kind: EventKind) -> Vec<Span<'static>> {
+    use crate::theme::{self, TokyoNight};
+    use ratatui::style::Stylize;
+
+    let mut spans = Vec::new();
+    let remaining = msg.to_string();
+
+    // For HTTP events, try to parse "METHOD /path -> STATUS in TIMEms"
+    if matches!(kind, EventKind::Http { .. }) {
+        // Try to match: "GET /foo/bar -> 200 in 5ms"
+        if let Some(arrow_pos) = remaining.find(" -> ") {
+            let before_arrow = &remaining[..arrow_pos];
+            let after_arrow = &remaining[arrow_pos + 4..];
+
+            // Parse method and path from before arrow
+            if let Some(space_pos) = before_arrow.find(' ') {
+                let method = &before_arrow[..space_pos];
+                let path = &before_arrow[space_pos + 1..];
+
+                spans.push(Span::raw(method.to_string()).tn_cyan());
+                spans.push(Span::raw(" "));
+                spans.push(Span::raw(path.to_string()).tn_path());
+                spans.push(Span::raw(" → ").tn_muted());
+
+                // Parse status and timing from after arrow
+                if let Some(in_pos) = after_arrow.find(" in ") {
+                    let status = &after_arrow[..in_pos];
+                    let timing = &after_arrow[in_pos + 4..];
+
+                    // Color status based on code
+                    let status_color = if let Ok(code) = status.parse::<u16>() {
+                        theme::http_status_color(code)
+                    } else {
+                        theme::FG
+                    };
+                    spans.push(Span::styled(status.to_string(), Style::default().fg(status_color)));
+                    spans.push(Span::raw(" in ").tn_muted());
+                    spans.push(Span::raw(timing.to_string()).tn_timing());
+                } else {
+                    spans.push(Span::raw(after_arrow.to_string()).tn_fg());
+                }
+                return spans;
+            }
+        }
+    }
+
+    // For file change events, highlight the path
+    if matches!(kind, EventKind::FileChange) {
+        // Common patterns: "Modified: /path" or just "/path"
+        if let Some(colon_pos) = remaining.find(": ") {
+            let prefix = &remaining[..colon_pos + 2];
+            let path = &remaining[colon_pos + 2..];
+            spans.push(Span::raw(prefix.to_string()).tn_fg_dark());
+            spans.push(Span::raw(path.to_string()).tn_path());
+            return spans;
+        } else if remaining.starts_with('/') || remaining.contains('/') {
+            spans.push(Span::raw(remaining).tn_path());
+            return spans;
+        }
+    }
+
+    // For reload/patch events, highlight paths
+    if matches!(kind, EventKind::Reload | EventKind::Patch) {
+        // Look for paths in the message
+        let parts: Vec<&str> = remaining.split('/').collect();
+        if parts.len() > 1 {
+            // Has a path - find where it starts
+            if let Some(slash_pos) = remaining.find('/') {
+                let before = &remaining[..slash_pos];
+                let path = &remaining[slash_pos..];
+                if !before.is_empty() {
+                    spans.push(Span::raw(before.to_string()).tn_fg());
+                }
+                spans.push(Span::raw(path.to_string()).tn_path());
+                return spans;
+            }
+        }
+    }
+
+    // Default: just return the message with default event color
+    spans.push(Span::raw(remaining).fg(kind.color()));
+    spans
+}
+
 impl ServeApp {
     pub fn new(
         progress_rx: ProgressRx,
@@ -389,6 +603,8 @@ impl ServeApp {
     }
 
     fn draw(&self, frame: &mut Frame) {
+        use crate::theme::{self, TokyoNight};
+
         // Read from channels (no locks!)
         let progress = self.progress_rx.borrow();
         let server = self.server_rx.borrow();
@@ -407,13 +623,13 @@ impl ServeApp {
 
         // Server block with network icon and status in title
         let (network_icon, icon_color) = match server.bind_mode {
-            BindMode::Local => ("💻", Color::Green),
-            BindMode::Lan => ("🏠", Color::Yellow),
+            BindMode::Local => ("💻", theme::GREEN),
+            BindMode::Lan => ("🏠", theme::YELLOW),
         };
         let status = if server.is_running {
-            ("●", Color::Green)
+            ("●", theme::GREEN)
         } else {
-            ("○", Color::Yellow)
+            ("○", theme::YELLOW)
         };
 
         let url_lines: Vec<Line> = server
@@ -421,49 +637,49 @@ impl ServeApp {
             .iter()
             .map(|url| {
                 Line::from(vec![
-                    Span::styled("  → ", Style::default().fg(Color::Cyan)),
-                    Span::styled(url.clone(), Style::default().fg(Color::Blue)),
+                    Span::raw("  → ").tn_cyan(),
+                    Span::raw(url.clone()).tn_url(),
                 ])
             })
             .collect();
 
         let server_title = Line::from(vec![
-            Span::raw(" Server "),
+            Span::raw(" 🌐 Server "),
             Span::styled(network_icon, Style::default().fg(icon_color)),
             Span::raw(" "),
             Span::styled(status.0, Style::default().fg(status.1)),
         ]);
         let urls_widget = Paragraph::new(url_lines)
-            .block(Block::default().title(server_title).borders(Borders::ALL));
+            .block(Block::default().title(server_title).borders(Borders::ALL).border_style(Style::default().fg(theme::FG_GUTTER)));
         frame.render_widget(urls_widget, chunks[0]);
 
         // Build progress (compact version)
         let tasks = [
-            (&progress.parse, "Sources"),
-            (&progress.render, "Templates"),
-            (&progress.sass, "Styles"),
+            (&progress.parse, "📄", "Sources"),
+            (&progress.render, "🎨", "Templates"),
+            (&progress.sass, "💅", "Styles"),
         ];
         let task_lines: Vec<Line> = tasks
             .iter()
-            .map(|(task, done_name)| {
+            .map(|(task, emoji, done_name)| {
                 let (color, symbol, name) = match task.status {
-                    TaskStatus::Pending => (Color::DarkGray, "○", task.name),
-                    TaskStatus::Running => (Color::Cyan, "◐", task.name),
-                    TaskStatus::Done => (Color::Green, "✓", *done_name),
-                    TaskStatus::Error => (Color::Red, "✗", task.name),
+                    TaskStatus::Pending => (theme::FG_DARK, "○", task.name),
+                    TaskStatus::Running => (theme::CYAN, "◐", task.name),
+                    TaskStatus::Done => (theme::GREEN, "✓", *done_name),
+                    TaskStatus::Error => (theme::RED, "✗", task.name),
                 };
                 let label = match task.status {
-                    TaskStatus::Done => format!("{symbol} {name}"),
+                    TaskStatus::Done => format!("{emoji} {symbol} {name}"),
                     _ if task.total > 0 => {
-                        format!("{} {} {}/{}", symbol, name, task.completed, task.total)
+                        format!("{emoji} {} {} {}/{}", symbol, name, task.completed, task.total)
                     }
-                    _ => format!("{symbol} {name}"),
+                    _ => format!("{emoji} {symbol} {name}"),
                 };
                 Line::from(Span::styled(label, Style::default().fg(color)))
             })
             .collect();
         let progress_widget = Paragraph::new(task_lines)
-            .block(Block::default().title("Status").borders(Borders::ALL));
+            .block(Block::default().title(" 🔨 Status ").borders(Borders::ALL).border_style(Style::default().fg(theme::FG_GUTTER)));
         frame.render_widget(progress_widget, chunks[1]);
 
         // Events log (from local buffer)
@@ -475,40 +691,45 @@ impl ServeApp {
             .take(max_events)
             .rev()
             .map(|e| {
-                let color = match e.level {
-                    LogLevel::Error => Color::Red,
-                    LogLevel::Warn => Color::Yellow,
-                    LogLevel::Info => Color::Blue,
-                    LogLevel::Debug => Color::DarkGray,
-                    LogLevel::Trace => Color::DarkGray,
+                // Use event kind for symbol and color, override with level for errors/warnings
+                let (symbol, symbol_color) = match e.level {
+                    LogLevel::Error => ("✗", theme::RED),
+                    LogLevel::Warn => (e.kind.symbol(), theme::YELLOW),
+                    _ => (e.kind.symbol(), e.kind.color()),
                 };
-                Line::from(Span::styled(e.message.clone(), Style::default().fg(color)))
+
+                // Build spans with highlighted paths, URLs, and timings
+                let mut spans = vec![
+                    Span::styled(format!("{} ", symbol), Style::default().fg(symbol_color)),
+                ];
+                spans.extend(highlight_message(&e.message, e.kind));
+                Line::from(spans)
             })
             .collect();
         let events_widget = Paragraph::new(recent_events)
-            .block(Block::default().title("Activity").borders(Borders::ALL));
+            .block(Block::default().title(" 📋 Activity ").borders(Borders::ALL).border_style(Style::default().fg(theme::FG_GUTTER)));
         frame.render_widget(events_widget, chunks[2]);
 
         // Footer
         let debug_indicator = if self.salsa_debug { "●" } else { "○" };
         let debug_color = if self.salsa_debug {
-            Color::Green
+            theme::GREEN
         } else {
-            Color::DarkGray
+            theme::FG_DARK
         };
         let footer = Paragraph::new(Line::from(vec![
-            Span::styled("?", Style::default().fg(Color::Yellow)),
-            Span::raw(" help  "),
-            Span::styled("p", Style::default().fg(Color::Yellow)),
-            Span::raw(" public  "),
-            Span::styled("d", Style::default().fg(Color::Yellow)),
-            Span::raw(" debug "),
+            Span::raw("?").tn_yellow(),
+            Span::raw(" help  ").tn_fg_dark(),
+            Span::raw("p").tn_yellow(),
+            Span::raw(" public  ").tn_fg_dark(),
+            Span::raw("d").tn_yellow(),
+            Span::raw(" debug ").tn_fg_dark(),
             Span::styled(debug_indicator, Style::default().fg(debug_color)),
-            Span::raw("  "),
-            Span::styled("q", Style::default().fg(Color::Yellow)),
-            Span::raw(" quit"),
+            Span::raw("  ").tn_fg_dark(),
+            Span::raw("q").tn_yellow(),
+            Span::raw(" quit").tn_fg_dark(),
         ]))
-        .style(Style::default().fg(Color::DarkGray));
+        .style(Style::default().fg(theme::FG_DARK));
         frame.render_widget(footer, chunks[3]);
 
         // Help overlay
@@ -518,6 +739,7 @@ impl ServeApp {
     }
 
     fn draw_help_overlay(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
+        use crate::theme::{self, TokyoNight};
         use ratatui::widgets::Clear;
 
         // Center the help panel
@@ -538,44 +760,44 @@ impl ServeApp {
         let help_text = vec![
             Line::from(""),
             Line::from(vec![
-                Span::styled("  ?", Style::default().fg(Color::Yellow)),
-                Span::raw("      Toggle this help"),
+                Span::raw("  ?").tn_yellow(),
+                Span::raw("      Toggle this help").tn_fg(),
             ]),
             Line::from(vec![
-                Span::styled("  p", Style::default().fg(Color::Yellow)),
-                Span::raw("      Toggle public/local mode"),
+                Span::raw("  p").tn_yellow(),
+                Span::raw("      Toggle public/local mode").tn_fg(),
             ]),
             Line::from(vec![
-                Span::styled("  d", Style::default().fg(Color::Yellow)),
-                Span::raw("      Toggle salsa debug logs"),
+                Span::raw("  d").tn_yellow(),
+                Span::raw("      Toggle salsa debug logs").tn_fg(),
             ]),
             Line::from(vec![
-                Span::styled("  q", Style::default().fg(Color::Yellow)),
-                Span::raw("      Quit / close panel"),
+                Span::raw("  q").tn_yellow(),
+                Span::raw("      Quit / close panel").tn_fg(),
             ]),
             Line::from(vec![
-                Span::styled("  Ctrl+C", Style::default().fg(Color::Yellow)),
-                Span::raw(" Force quit"),
+                Span::raw("  Ctrl+C").tn_yellow(),
+                Span::raw(" Force quit").tn_fg(),
             ]),
             Line::from(""),
             Line::from(vec![
-                Span::styled("  💻", Style::default().fg(Color::Green)),
-                Span::raw(" = localhost only"),
+                Span::raw("  💻").tn_green(),
+                Span::raw(" = localhost only").tn_fg(),
             ]),
             Line::from(vec![
-                Span::styled("  🏠", Style::default().fg(Color::Yellow)),
-                Span::raw(" = LAN (home network)"),
+                Span::raw("  🏠").tn_yellow(),
+                Span::raw(" = LAN (home network)").tn_fg(),
             ]),
         ];
 
         let help_widget = Paragraph::new(help_text)
             .block(
                 Block::default()
-                    .title(" Help ")
+                    .title(" ❓ Help ")
                     .borders(Borders::ALL)
-                    .border_style(Style::default().fg(Color::Cyan)),
+                    .border_style(Style::default().fg(theme::CYAN)),
             )
-            .style(Style::default().bg(Color::Black));
+            .style(Style::default().bg(theme::BG_DARK));
 
         frame.render_widget(help_widget, help_area);
     }

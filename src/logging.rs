@@ -6,7 +6,7 @@
 //! - Slow query logging (spans >50ms)
 //! - Standard env filter for non-TUI mode
 
-use crate::tui::{LogEvent, LogLevel};
+use crate::tui::{EventKind, LogEvent, LogLevel};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
@@ -70,6 +70,7 @@ where
                     let name = span.name();
                     let _ = self.tx.send(LogEvent {
                         level: LogLevel::Warn,
+                        kind: EventKind::Build,
                         message: format!("slow query: {} took {}ms", name, elapsed_ms),
                     });
                 }
@@ -114,8 +115,12 @@ where
             Level::TRACE => LogLevel::Trace,
         };
 
+        // Detect event kind from message patterns
+        let kind = detect_event_kind(&msg, target);
+
         let _ = self.tx.send(LogEvent {
             level: log_level,
+            kind,
             message: msg,
         });
     }
@@ -157,6 +162,85 @@ impl tracing::field::Visit for MessageVisitor {
         if field.name() == "message" {
             self.message = Some(format!("{value:?}"));
         }
+    }
+}
+
+/// Detect event kind from message content and target
+fn detect_event_kind(msg: &str, target: &str) -> EventKind {
+    // HTTP requests: "GET /path -> 200 in 1.2ms"
+    if let Some(status) = parse_http_status(msg) {
+        return EventKind::Http { status };
+    }
+
+    // Salsa/build events
+    if target.starts_with("salsa") {
+        return EventKind::Build;
+    }
+
+    // Match on emoji prefixes first (more reliable)
+    if msg.starts_with("✨") {
+        return EventKind::Patch;
+    }
+    if msg.starts_with("🔄") {
+        return EventKind::Reload;
+    }
+    if msg.starts_with("🔍") {
+        return EventKind::Search;
+    }
+    if msg.starts_with("🔌") {
+        return EventKind::Server;
+    }
+    if msg.starts_with("📄") || msg.starts_with("🎨") || msg.starts_with("💅")
+        || msg.starts_with("🖼") || msg.starts_with("📁") || msg.starts_with("🔤")
+        || msg.starts_with("📜") {
+        return EventKind::FileChange;
+    }
+
+    // Match on message content patterns (fallback)
+    let msg_lower = msg.to_lowercase();
+
+    if msg_lower.contains("reload") {
+        EventKind::Reload
+    } else if msg_lower.contains("patch") {
+        EventKind::Patch
+    } else if msg_lower.contains("search") || msg_lower.contains("pagefind") {
+        EventKind::Search
+    } else if msg_lower.contains("changed:") || msg_lower.contains("modified") {
+        EventKind::FileChange
+    } else if msg_lower.contains("server") || msg_lower.contains("listening") || msg_lower.contains("binding") || msg_lower.contains("browser") {
+        EventKind::Server
+    } else if msg_lower.contains("compil") || msg_lower.contains("build") || msg_lower.contains("render") || msg_lower.contains("slow query") {
+        EventKind::Build
+    } else {
+        EventKind::Generic
+    }
+}
+
+/// Try to parse HTTP status code from log message like "GET /path -> 200 in 1.2ms"
+fn parse_http_status(msg: &str) -> Option<u16> {
+    let msg = msg.trim();
+
+    // New format: "GET /path -> 200 in 1.2ms"
+    if let Some(arrow_pos) = msg.find(" -> ") {
+        let after_arrow = &msg[arrow_pos + 4..];
+        // Extract status code (first token after arrow)
+        let status_end = after_arrow.find(' ').unwrap_or(after_arrow.len());
+        let status_str = &after_arrow[..status_end];
+        if let Ok(status) = status_str.parse::<u16>() {
+            if (100..600).contains(&status) {
+                return Some(status);
+            }
+        }
+    }
+
+    // Old format fallback: "200 /path 1.2ms" (first token is status)
+    let first_space = msg.find(' ')?;
+    let status_str = &msg[..first_space];
+    let status: u16 = status_str.parse().ok()?;
+    if (100..600).contains(&status) {
+        Some(status)
+    } else {
+        None
     }
 }
 
