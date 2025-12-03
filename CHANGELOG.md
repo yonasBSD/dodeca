@@ -1,3 +1,9 @@
+## 0.2.6 (2025-12-03)
+
+### Fixes
+
+- use cargo-binstall for faster wasm-pack install
+
 ## 0.2.5 (2025-12-03)
 
 ### Fixes
