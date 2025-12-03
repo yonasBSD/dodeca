@@ -137,10 +137,12 @@ jobs:
         shell: "bash"
       - name: "Add wasm32 target"
         run: "rustup target add wasm32-unknown-unknown"
+        shell: "bash"
       - name: "Build livereload-client WASM"
         run: |
           cargo build -p livereload-client --target wasm32-unknown-unknown --release
           wasm-bindgen --target web --out-dir crates/livereload-client/pkg target/wasm32-unknown-unknown/release/livereload_client.wasm
+        shell: "bash"
       - name: Install dist
         run: ${{ matrix.install_dist.run }}
       # Get the dist-manifest

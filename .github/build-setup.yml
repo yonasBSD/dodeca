@@ -7,8 +7,10 @@
     echo "Installing wasm-bindgen-cli@$VERSION"
     cargo binstall "wasm-bindgen-cli@=$VERSION" -y --force
 - name: Add wasm32 target
+  shell: bash
   run: rustup target add wasm32-unknown-unknown
 - name: Build livereload-client WASM
+  shell: bash
   run: |
     cargo build -p livereload-client --target wasm32-unknown-unknown --release
     wasm-bindgen --target web --out-dir crates/livereload-client/pkg target/wasm32-unknown-unknown/release/livereload_client.wasm
