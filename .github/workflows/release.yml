@@ -129,10 +129,14 @@ jobs:
           fi
       - name: "Install cargo-binstall"
         uses: "cargo-bins/cargo-binstall@main"
-      - name: "Install wasm-pack"
-        run: "cargo binstall wasm-pack -y --force"
+      - name: "Install wasm-bindgen-cli"
+        run: "cargo binstall wasm-bindgen-cli -y --force"
+      - name: "Add wasm32 target"
+        run: "rustup target add wasm32-unknown-unknown"
       - name: "Build livereload-client WASM"
-        run: "wasm-pack build --target web crates/livereload-client"
+        run: |
+          cargo build -p livereload-client --target wasm32-unknown-unknown --release
+          wasm-bindgen --target web --out-dir crates/livereload-client/pkg target/wasm32-unknown-unknown/release/livereload_client.wasm
       - name: Install dist
         run: ${{ matrix.install_dist.run }}
       # Get the dist-manifest
