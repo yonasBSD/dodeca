@@ -1,3 +1,10 @@
+## 0.2.3 (2025-12-03)
+
+### Fixes
+
+- discover plugins dynamically instead of hardcoded list
+- add wasm-pack pre-build step for cargo-dist releases
+
 ## 0.2.2 (2025-12-03)
 
 ### Fixes
