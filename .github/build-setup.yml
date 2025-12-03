@@ -3,7 +3,8 @@
 - name: Install wasm-bindgen-cli
   shell: bash
   run: |
-    VERSION=$(grep -A1 'name = "wasm-bindgen"' Cargo.lock | grep version | head -1 | cut -d'"' -f2)
+    VERSION=$(cargo metadata --format-version 1 | jq -r '.packages[] | select(.name == "wasm-bindgen") | .version' | head -1)
+    echo "Installing wasm-bindgen-cli@$VERSION"
     cargo binstall "wasm-bindgen-cli@=$VERSION" -y --force
 - name: Add wasm32 target
   run: rustup target add wasm32-unknown-unknown
