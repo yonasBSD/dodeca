@@ -1,3 +1,9 @@
+## 0.2.7 (2025-12-03)
+
+### Fixes
+
+- use wasm-bindgen-cli directly instead of wasm-pack
+
 ## 0.2.6 (2025-12-03)
 
 ### Fixes
