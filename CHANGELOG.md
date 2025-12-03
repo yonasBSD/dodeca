@@ -1,3 +1,10 @@
+## 0.2.8 (2025-12-03)
+
+### Fixes
+
+- pin wasm-bindgen-cli to match lockfile version
+- remove committed pkg files, auto-detect wasm-bindgen version from lockfile
+
 ## 0.2.7 (2025-12-03)
 
 ### Fixes
