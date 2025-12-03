@@ -1,3 +1,9 @@
+## 0.2.5 (2025-12-03)
+
+### Fixes
+
+- use cargo install wasm-pack for ARM64 compatibility
+
 ## 0.2.4 (2025-12-03)
 
 ### Fixes
