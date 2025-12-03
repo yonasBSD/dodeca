@@ -1,3 +1,9 @@
+## 0.2.1 (2025-12-03)
+
+### Fixes
+
+- add rust-toolchain.toml for Rust 1.91 (#62)
+
 ## 0.2.0 (2025-12-03)
 
 ### Features
