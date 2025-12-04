@@ -1015,4 +1015,210 @@ mod tests {
         // The error should reference child.html, not base.html
         assert!(err.contains("child.html"), "Error should reference child.html: {}", err);
     }
+
+    // ========================================================================
+    // New filter tests (#71, #72, #73, #74, #78)
+    // ========================================================================
+
+    #[test]
+    fn test_typeof_filter() {
+        let t = Template::parse("test", "{{ x | typeof }}").unwrap();
+        assert_eq!(t.render_with([("x", Value::from("hello"))]).unwrap(), "string");
+        assert_eq!(t.render_with([("x", Value::from(42i64))]).unwrap(), "number");
+        assert_eq!(t.render_with([("x", Value::NULL)]).unwrap(), "none");
+
+        let arr: Value = VArray::from_iter([Value::from(1i64)]).into();
+        assert_eq!(t.render_with([("x", arr)]).unwrap(), "list");
+
+        let obj: Value = VObject::new().into();
+        assert_eq!(t.render_with([("x", obj)]).unwrap(), "dict");
+    }
+
+    #[test]
+    fn test_slice_filter_kwargs() {
+        let t = Template::parse("test", "{% for x in items | slice(end=2) %}{{ x }}{% endfor %}").unwrap();
+        let items: Value = VArray::from_iter([Value::from("a"), Value::from("b"), Value::from("c")]).into();
+        assert_eq!(t.render_with([("items", items)]).unwrap(), "ab");
+    }
+
+    #[test]
+    fn test_slice_filter_start_end() {
+        let t = Template::parse("test", "{% for x in items | slice(start=1, end=3) %}{{ x }}{% endfor %}").unwrap();
+        let items: Value = VArray::from_iter([Value::from("a"), Value::from("b"), Value::from("c"), Value::from("d")]).into();
+        assert_eq!(t.render_with([("items", items)]).unwrap(), "bc");
+    }
+
+    #[test]
+    fn test_slice_filter_positional() {
+        let t = Template::parse("test", "{% for x in items | slice(1, 3) %}{{ x }}{% endfor %}").unwrap();
+        let items: Value = VArray::from_iter([Value::from("a"), Value::from("b"), Value::from("c"), Value::from("d")]).into();
+        assert_eq!(t.render_with([("items", items)]).unwrap(), "bc");
+    }
+
+    #[test]
+    fn test_slice_filter_empty() {
+        let t = Template::parse("test", "{% for x in items | slice(end=0) %}{{ x }}{% endfor %}").unwrap();
+        let items: Value = VArray::from_iter([Value::from("a"), Value::from("b")]).into();
+        assert_eq!(t.render_with([("items", items)]).unwrap(), "");
+    }
+
+    #[test]
+    fn test_map_filter() {
+        let t = Template::parse("test", "{{ items | map(attribute=\"name\") | join(\", \") }}").unwrap();
+
+        let mut item1 = VObject::new();
+        item1.insert(VString::from("name"), Value::from("Alice"));
+        let mut item2 = VObject::new();
+        item2.insert(VString::from("name"), Value::from("Bob"));
+
+        let items: Value = VArray::from_iter([Value::from(item1), Value::from(item2)]).into();
+        assert_eq!(t.render_with([("items", items)]).unwrap(), "Alice, Bob");
+    }
+
+    #[test]
+    fn test_map_filter_missing_attr() {
+        let t = Template::parse("test", "{{ items | map(attribute=\"missing\") | length }}").unwrap();
+
+        let mut item1 = VObject::new();
+        item1.insert(VString::from("name"), Value::from("Alice"));
+
+        let items: Value = VArray::from_iter([Value::from(item1)]).into();
+        // Items without the attribute are filtered out
+        assert_eq!(t.render_with([("items", items)]).unwrap(), "0");
+    }
+
+    #[test]
+    fn test_selectattr_truthy() {
+        let t = Template::parse("test", "{% for x in items | selectattr(\"active\") %}{{ x.name }}{% endfor %}").unwrap();
+
+        let mut item1 = VObject::new();
+        item1.insert(VString::from("name"), Value::from("Alice"));
+        item1.insert(VString::from("active"), Value::from(true));
+        let mut item2 = VObject::new();
+        item2.insert(VString::from("name"), Value::from("Bob"));
+        item2.insert(VString::from("active"), Value::from(false));
+        let mut item3 = VObject::new();
+        item3.insert(VString::from("name"), Value::from("Carol"));
+        item3.insert(VString::from("active"), Value::from(true));
+
+        let items: Value = VArray::from_iter([Value::from(item1), Value::from(item2), Value::from(item3)]).into();
+        assert_eq!(t.render_with([("items", items)]).unwrap(), "AliceCarol");
+    }
+
+    #[test]
+    fn test_selectattr_eq() {
+        let t = Template::parse("test", "{% for x in items | selectattr(\"status\", \"eq\", \"active\") %}{{ x.name }}{% endfor %}").unwrap();
+
+        let mut item1 = VObject::new();
+        item1.insert(VString::from("name"), Value::from("Alice"));
+        item1.insert(VString::from("status"), Value::from("active"));
+        let mut item2 = VObject::new();
+        item2.insert(VString::from("name"), Value::from("Bob"));
+        item2.insert(VString::from("status"), Value::from("inactive"));
+
+        let items: Value = VArray::from_iter([Value::from(item1), Value::from(item2)]).into();
+        assert_eq!(t.render_with([("items", items)]).unwrap(), "Alice");
+    }
+
+    #[test]
+    fn test_selectattr_gt() {
+        let t = Template::parse("test", "{% for x in items | selectattr(\"weight\", \"gt\", 5) %}{{ x.name }}{% endfor %}").unwrap();
+
+        let mut item1 = VObject::new();
+        item1.insert(VString::from("name"), Value::from("Heavy"));
+        item1.insert(VString::from("weight"), Value::from(10i64));
+        let mut item2 = VObject::new();
+        item2.insert(VString::from("name"), Value::from("Light"));
+        item2.insert(VString::from("weight"), Value::from(3i64));
+
+        let items: Value = VArray::from_iter([Value::from(item1), Value::from(item2)]).into();
+        assert_eq!(t.render_with([("items", items)]).unwrap(), "Heavy");
+    }
+
+    #[test]
+    fn test_rejectattr_truthy() {
+        let t = Template::parse("test", "{% for x in items | rejectattr(\"draft\") %}{{ x.name }}{% endfor %}").unwrap();
+
+        let mut item1 = VObject::new();
+        item1.insert(VString::from("name"), Value::from("Published"));
+        item1.insert(VString::from("draft"), Value::from(false));
+        let mut item2 = VObject::new();
+        item2.insert(VString::from("name"), Value::from("Draft"));
+        item2.insert(VString::from("draft"), Value::from(true));
+
+        let items: Value = VArray::from_iter([Value::from(item1), Value::from(item2)]).into();
+        assert_eq!(t.render_with([("items", items)]).unwrap(), "Published");
+    }
+
+    #[test]
+    fn test_selectattr_starting_with() {
+        let t = Template::parse("test", "{% for x in items | selectattr(\"path\", \"starting_with\", \"/admin\") %}{{ x.name }}{% endfor %}").unwrap();
+
+        let mut item1 = VObject::new();
+        item1.insert(VString::from("name"), Value::from("Admin"));
+        item1.insert(VString::from("path"), Value::from("/admin/dashboard"));
+        let mut item2 = VObject::new();
+        item2.insert(VString::from("name"), Value::from("User"));
+        item2.insert(VString::from("path"), Value::from("/user/profile"));
+
+        let items: Value = VArray::from_iter([Value::from(item1), Value::from(item2)]).into();
+        assert_eq!(t.render_with([("items", items)]).unwrap(), "Admin");
+    }
+
+    #[test]
+    fn test_groupby_filter() {
+        // Use tuple unpacking to access category and items
+        let t = Template::parse("test", "{% for category, group_items in items | groupby(attribute=\"category\") %}[{{ category }}:{% for x in group_items %}{{ x.name }}{% endfor %}]{% endfor %}").unwrap();
+
+        let mut item1 = VObject::new();
+        item1.insert(VString::from("name"), Value::from("Apple"));
+        item1.insert(VString::from("category"), Value::from("fruit"));
+        let mut item2 = VObject::new();
+        item2.insert(VString::from("name"), Value::from("Carrot"));
+        item2.insert(VString::from("category"), Value::from("vegetable"));
+        let mut item3 = VObject::new();
+        item3.insert(VString::from("name"), Value::from("Banana"));
+        item3.insert(VString::from("category"), Value::from("fruit"));
+
+        let items: Value = VArray::from_iter([Value::from(item1), Value::from(item2), Value::from(item3)]).into();
+        let result = t.render_with([("items", items)]).unwrap();
+        // Order is preserved: fruit first (Apple, Banana), then vegetable (Carrot)
+        assert_eq!(result, "[fruit:AppleBanana][vegetable:Carrot]");
+    }
+
+    #[test]
+    fn test_groupby_tuple_unpacking() {
+        // Test using tuple unpacking syntax in for loop
+        let t = Template::parse("test", "{% for category, posts in items | groupby(attribute=\"cat\") %}{{ category }}:{{ posts | length }};{% endfor %}").unwrap();
+
+        let mut item1 = VObject::new();
+        item1.insert(VString::from("cat"), Value::from("A"));
+        let mut item2 = VObject::new();
+        item2.insert(VString::from("cat"), Value::from("B"));
+        let mut item3 = VObject::new();
+        item3.insert(VString::from("cat"), Value::from("A"));
+
+        let items: Value = VArray::from_iter([Value::from(item1), Value::from(item2), Value::from(item3)]).into();
+        let result = t.render_with([("items", items)]).unwrap();
+        assert_eq!(result, "A:2;B:1;");
+    }
+
+    #[test]
+    fn test_filters_chained() {
+        // Test chaining multiple new filters
+        let t = Template::parse("test", "{{ items | selectattr(\"active\") | map(attribute=\"name\") | join(\", \") }}").unwrap();
+
+        let mut item1 = VObject::new();
+        item1.insert(VString::from("name"), Value::from("Alice"));
+        item1.insert(VString::from("active"), Value::from(true));
+        let mut item2 = VObject::new();
+        item2.insert(VString::from("name"), Value::from("Bob"));
+        item2.insert(VString::from("active"), Value::from(false));
+        let mut item3 = VObject::new();
+        item3.insert(VString::from("name"), Value::from("Carol"));
+        item3.insert(VString::from("active"), Value::from(true));
+
+        let items: Value = VArray::from_iter([Value::from(item1), Value::from(item2), Value::from(item3)]).into();
+        assert_eq!(t.render_with([("items", items)]).unwrap(), "Alice, Carol");
+    }
 }

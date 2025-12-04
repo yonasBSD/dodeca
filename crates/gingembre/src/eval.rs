@@ -840,6 +840,116 @@ fn value_in(needle: &Value, haystack: &Value) -> bool {
     }
 }
 
+/// Helper for selectattr/rejectattr filters
+fn filter_by_attr<'a>(
+    value: &Value,
+    args: &[Value],
+    get_kwarg: impl Fn(&str) -> Option<&'a Value>,
+    reject: bool,
+) -> Value {
+    match value.destructure_ref() {
+        DestructuredRef::Array(arr) => {
+            // args[0] = attribute name (required)
+            // args[1] = test name (optional, default "truthy")
+            // args[2] = test value (optional, for comparison tests)
+            let attr_name = match args.first().and_then(|v| v.as_string()) {
+                Some(s) => s.to_string(),
+                None => return value.clone(),
+            };
+
+            let test_name = args
+                .get(1)
+                .and_then(|v| v.as_string())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "truthy".to_string());
+
+            let test_value = args.get(2).cloned().or_else(|| get_kwarg("value").cloned());
+
+            let filtered: Vec<Value> = arr
+                .iter()
+                .filter(|item| {
+                    let attr_val = if let DestructuredRef::Object(obj) = item.destructure_ref() {
+                        obj.get(attr_name.as_str()).cloned()
+                    } else {
+                        None
+                    };
+
+                    let passes = match test_name.as_str() {
+                        "truthy" => attr_val.as_ref().map(|v| v.is_truthy()).unwrap_or(false),
+                        "falsy" => attr_val.as_ref().map(|v| !v.is_truthy()).unwrap_or(true),
+                        "defined" => attr_val.is_some(),
+                        "undefined" => attr_val.is_none(),
+                        "none" => attr_val.as_ref().map(|v| v.is_null()).unwrap_or(true),
+                        "eq" => match (&attr_val, &test_value) {
+                            (Some(a), Some(b)) => values_equal(a, b),
+                            _ => false,
+                        },
+                        "ne" => match (&attr_val, &test_value) {
+                            (Some(a), Some(b)) => !values_equal(a, b),
+                            _ => true,
+                        },
+                        "gt" => match (&attr_val, &test_value) {
+                            (Some(a), Some(b)) => {
+                                compare_values(a, b) == Some(std::cmp::Ordering::Greater)
+                            }
+                            _ => false,
+                        },
+                        "ge" => match (&attr_val, &test_value) {
+                            (Some(a), Some(b)) => {
+                                matches!(
+                                    compare_values(a, b),
+                                    Some(std::cmp::Ordering::Greater | std::cmp::Ordering::Equal)
+                                )
+                            }
+                            _ => false,
+                        },
+                        "lt" => match (&attr_val, &test_value) {
+                            (Some(a), Some(b)) => {
+                                compare_values(a, b) == Some(std::cmp::Ordering::Less)
+                            }
+                            _ => false,
+                        },
+                        "le" => match (&attr_val, &test_value) {
+                            (Some(a), Some(b)) => {
+                                matches!(
+                                    compare_values(a, b),
+                                    Some(std::cmp::Ordering::Less | std::cmp::Ordering::Equal)
+                                )
+                            }
+                            _ => false,
+                        },
+                        "starting_with" => match (&attr_val, &test_value) {
+                            (Some(a), Some(b)) => {
+                                a.render_to_string().starts_with(&b.render_to_string())
+                            }
+                            _ => false,
+                        },
+                        "ending_with" => match (&attr_val, &test_value) {
+                            (Some(a), Some(b)) => {
+                                a.render_to_string().ends_with(&b.render_to_string())
+                            }
+                            _ => false,
+                        },
+                        "containing" => match (&attr_val, &test_value) {
+                            (Some(a), Some(b)) => {
+                                a.render_to_string().contains(&b.render_to_string())
+                            }
+                            _ => false,
+                        },
+                        _ => attr_val.as_ref().map(|v| v.is_truthy()).unwrap_or(false),
+                    };
+
+                    if reject { !passes } else { passes }
+                })
+                .cloned()
+                .collect();
+
+            VArray::from_iter(filtered).into()
+        }
+        _ => value.clone(),
+    }
+}
+
 /// Apply a built-in filter
 fn apply_filter(
     name: &str,
@@ -865,6 +975,12 @@ fn apply_filter(
         "default",
         "escape",
         "safe",
+        "typeof",
+        "slice",
+        "map",
+        "selectattr",
+        "rejectattr",
+        "groupby",
     ];
 
     // Helper to get kwarg value
@@ -1033,6 +1149,102 @@ fn apply_filter(
             } else {
                 // Non-strings can't be marked safe, return as-is
                 value
+            }
+        }
+        "typeof" => {
+            // Return the type name of the value
+            Value::from(value.type_name())
+        }
+        "slice" => {
+            // Slice a list: slice(start=0, end=N) or slice(0, N)
+            match value.destructure_ref() {
+                DestructuredRef::Array(arr) => {
+                    let start = get_kwarg("start")
+                        .and_then(|v| v.as_number().and_then(|n| n.to_i64()))
+                        .or_else(|| args.first().and_then(|v| v.as_number().and_then(|n| n.to_i64())))
+                        .unwrap_or(0)
+                        .max(0) as usize;
+                    let end = get_kwarg("end")
+                        .and_then(|v| v.as_number().and_then(|n| n.to_i64()))
+                        .or_else(|| args.get(1).and_then(|v| v.as_number().and_then(|n| n.to_i64())))
+                        .map(|e| e.max(0) as usize)
+                        .unwrap_or(arr.len());
+                    let end = end.min(arr.len());
+                    let start = start.min(end);
+                    VArray::from_iter(arr.iter().skip(start).take(end - start).cloned()).into()
+                }
+                _ => value,
+            }
+        }
+        "map" => {
+            // Extract an attribute from each item: map(attribute="field")
+            match value.destructure_ref() {
+                DestructuredRef::Array(arr) => {
+                    if let Some(attr) = get_kwarg("attribute").and_then(|v| v.as_string()) {
+                        let mapped: Vec<Value> = arr
+                            .iter()
+                            .filter_map(|item| {
+                                if let DestructuredRef::Object(obj) = item.destructure_ref() {
+                                    obj.get(attr.as_str()).cloned()
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect();
+                        VArray::from_iter(mapped).into()
+                    } else {
+                        value
+                    }
+                }
+                _ => value,
+            }
+        }
+        "selectattr" => {
+            // Filter items where attribute passes a test: selectattr("field", "eq", value)
+            filter_by_attr(&value, args, get_kwarg, false)
+        }
+        "rejectattr" => {
+            // Filter items where attribute fails a test: rejectattr("field", "eq", value)
+            filter_by_attr(&value, args, get_kwarg, true)
+        }
+        "groupby" => {
+            // Group items by attribute: groupby(attribute="field")
+            match value.destructure_ref() {
+                DestructuredRef::Array(arr) => {
+                    if let Some(attr) = get_kwarg("attribute").and_then(|v| v.as_string()) {
+                        // Use Vec to maintain insertion order
+                        let mut groups: Vec<(String, Vec<Value>)> = Vec::new();
+                        for item in arr.iter() {
+                            let key = if let DestructuredRef::Object(obj) = item.destructure_ref() {
+                                obj.get(attr.as_str())
+                                    .map(|v| v.render_to_string())
+                                    .unwrap_or_default()
+                            } else {
+                                String::new()
+                            };
+                            // Find or create group
+                            if let Some((_, items)) = groups.iter_mut().find(|(k, _)| k == &key) {
+                                items.push(item.clone());
+                            } else {
+                                groups.push((key, vec![item.clone()]));
+                            }
+                        }
+                        // Return as array of [key, items] pairs for tuple unpacking
+                        let pairs: Vec<Value> = groups
+                            .into_iter()
+                            .map(|(k, v)| {
+                                let items_arr: Value = VArray::from_iter(v).into();
+                                let pair: Value =
+                                    VArray::from_iter([Value::from(k.as_str()), items_arr]).into();
+                                pair
+                            })
+                            .collect();
+                        VArray::from_iter(pairs).into()
+                    } else {
+                        value
+                    }
+                }
+                _ => value,
             }
         }
         _ => {
