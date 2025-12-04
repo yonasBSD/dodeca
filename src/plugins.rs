@@ -116,19 +116,22 @@ pub fn plugins() -> &'static PluginRegistry {
     PLUGINS.get_or_init(|| {
         // Look for plugins in several locations:
         // 1. Next to the executable
-        // 2. In target/debug (for development)
-        // 3. In target/release
+        // 2. In plugins/ subdirectory next to executable (for installed releases)
+        // 3. In target/debug (for development)
+        // 4. In target/release
 
         let exe_dir = std::env::current_exe()
             .ok()
             .and_then(|p| p.parent().map(|p| p.to_path_buf()));
+
+        let plugins_dir = exe_dir.as_ref().map(|p| p.join("plugins"));
 
         #[cfg(debug_assertions)]
         let profile_dir = PathBuf::from("target/debug");
         #[cfg(not(debug_assertions))]
         let profile_dir = PathBuf::from("target/release");
 
-        let search_paths: Vec<PathBuf> = [exe_dir, Some(profile_dir)]
+        let search_paths: Vec<PathBuf> = [exe_dir, plugins_dir, Some(profile_dir)]
             .into_iter()
             .flatten()
             .collect();

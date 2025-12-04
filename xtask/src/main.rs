@@ -5,11 +5,16 @@
 //!   cargo xtask run [--release] [-- <ddc args>]
 //!   cargo xtask install
 //!   cargo xtask wasm
+//!   cargo xtask ci [--check]
+
+mod ci;
 
 use std::env;
 use std::fs;
 use std::path::PathBuf;
 use std::process::{Command, ExitCode};
+
+use camino::Utf8PathBuf;
 
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().skip(1).collect();
@@ -53,12 +58,27 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             }
         }
+        Some("ci") => {
+            let check = args.iter().any(|a| a == "--check");
+            let repo_root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .parent()
+                .unwrap()
+                .to_owned();
+            match ci::generate(&repo_root, check) {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(e) => {
+                    eprintln!("Error: {e}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
         _ => {
             eprintln!("Usage:");
             eprintln!("  cargo xtask build [--release]        Build WASM + plugins + dodeca");
             eprintln!("  cargo xtask run [--release] [-- ..]  Build all, then run ddc");
             eprintln!("  cargo xtask install                  Build release & install to ~/.cargo/bin");
             eprintln!("  cargo xtask wasm                     Build WASM only");
+            eprintln!("  cargo xtask ci [--check]             Generate release workflow");
             ExitCode::FAILURE
         }
     }
