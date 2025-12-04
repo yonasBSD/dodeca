@@ -3,7 +3,7 @@ members = [".", "crates/gingembre", "crates/livereload-client", "crates/plugcard
 
 [package]
 name = "dodeca"
-version = "0.2.11"
+version = "0.2.12"
 edition = "2024"
 rust-version = "1.91"
 authors = ["Amos Wenger <amos@bearcove.eu>"]

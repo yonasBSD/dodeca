@@ -1,3 +1,22 @@
+## 0.2.12 (2025-12-04)
+
+### Features
+
+- extract template engine to standalone `gingembre` crate (#94)
+- lazy template loading via SalsaTemplateLoader (#96)
+- lazy data loading with per-value Salsa tracking (#98)
+- add template engine filters (#71, #72, #73, #74, #78)
+- validate hash fragment links against heading IDs (#89)
+- extract pagefind to plugin (#33)
+
+### Fixes
+
+- track correct source file for template errors in inherited blocks (#65)
+- resolve Zola-style links with hash fragments correctly (#87)
+- properly invalidate section.pages when files are added (#90)
+- add version checks to prevent panic on stale cache (#100)
+- avoid deadlock in serve_with_tui startup
+
 ## 0.2.11 (2025-12-03)
 
 ### Fixes
