@@ -2064,8 +2064,10 @@ async fn serve_with_tui(
         .collect();
 
     {
-        let db = server.db.lock().unwrap();
+        // Get current sources BEFORE locking db to avoid deadlock
+        // (get_sources() also locks db internally)
         let mut sources = server.get_sources();
+        let db = server.db.lock().unwrap();
 
         for path in &md_files {
             let content = fs::read_to_string(path)?;
@@ -2112,8 +2114,9 @@ async fn serve_with_tui(
             .filter_map(|e| Utf8PathBuf::from_path_buf(e.into_path()).ok())
             .collect();
 
-        let db = server.db.lock().unwrap();
+        // Get current templates BEFORE locking db to avoid deadlock
         let mut templates = server.get_templates();
+        let db = server.db.lock().unwrap();
 
         for path in &template_files {
             let content = fs::read_to_string(path)?;
@@ -2142,8 +2145,9 @@ async fn serve_with_tui(
     let static_dir = parent_dir.join("static");
     if static_dir.exists() {
         let walker = WalkBuilder::new(&static_dir).build();
-        let db = server.db.lock().unwrap();
+        // Get current static files BEFORE locking db to avoid deadlock
         let mut static_files = server.get_static_files();
+        let db = server.db.lock().unwrap();
         let mut count = 0;
 
         for entry in walker {
@@ -2183,8 +2187,9 @@ async fn serve_with_tui(
             .filter_map(|e| Utf8PathBuf::from_path_buf(e.into_path()).ok())
             .collect();
 
-        let db = server.db.lock().unwrap();
+        // Get current sass files BEFORE locking db to avoid deadlock
         let mut sass_files = server.get_sass_files();
+        let db = server.db.lock().unwrap();
 
         for path in &sass_files_list {
             let content = fs::read_to_string(path)?;
