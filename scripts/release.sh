@@ -6,13 +6,10 @@ set -euo pipefail
 
 echo "Preparing release..."
 
-# Copy shell installer
+# Copy installers
 cp install.sh dist/dodeca-installer.sh
-echo "Copied: dodeca-installer.sh"
-
-# Generate PowerShell installer
-cargo xtask generate-ps1-installer dist/dodeca-installer.ps1
-echo "Generated: dodeca-installer.ps1"
+cp install.ps1 dist/dodeca-installer.ps1
+echo "Copied: dodeca-installer.sh, dodeca-installer.ps1"
 
 # List all artifacts
 echo ""

@@ -453,10 +453,12 @@ pub fn build_release_workflow() -> Workflow {
             .name("Create Release")
             .needs(build_job_ids)
             .if_condition("startsWith(github.ref, 'refs/tags/')")
-            .env([("GH_TOKEN", "${{ secrets.GITHUB_TOKEN }}")])
+            .env([
+                ("GH_TOKEN", "${{ secrets.GITHUB_TOKEN }}"),
+                ("HOMEBREW_TAP_TOKEN", "${{ secrets.HOMEBREW_TAP_TOKEN }}"),
+            ])
             .steps([
                 checkout(),
-                Step::uses("Install Rust", "dtolnay/rust-toolchain@stable"),
                 download_all_artifacts("dist"),
                 Step::run("Prepare release", "bash scripts/release.sh").shell("bash"),
                 Step::run("Create GitHub Release", r#"
@@ -465,6 +467,7 @@ gh release create "${{ github.ref_name }}" \
   --generate-notes \
   dist/*
 "#.trim()).shell("bash"),
+                Step::run("Update Homebrew tap", r#"bash scripts/update-homebrew.sh "${{ github.ref_name }}""#).shell("bash"),
             ]),
     );
 

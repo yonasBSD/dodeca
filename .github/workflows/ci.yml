@@ -58,8 +58,6 @@ jobs:
     defaults:
       run:
         shell: bash
-    env:
-      PATH: C:\Users\Administrator\.cargo\bin;${{ env.PATH }}
     steps:
       - uses: actions/checkout@v5
 
@@ -73,7 +71,7 @@ jobs:
         run: cargo install wasm-pack
 
       - name: Build livereload WASM
-        run: ~/.cargo/bin/wasm-pack build --target web crates/livereload-client
+        run: $HOME/.cargo/bin/wasm-pack build --target web crates/livereload-client
 
       - name: Build plugins
         run: cargo build -p dodeca-webp -p dodeca-jxl
