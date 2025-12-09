@@ -84,70 +84,6 @@ a-eb { color: #ff9e64; } /* embedded */
 a-er { color: #f7768e; text-decoration: wavy underline; } /* errors */
 </style>"##;
 
-/// Script and styles for copy button on code blocks (always injected)
-const CODE_COPY_SCRIPT: &str = r##"<style>
-pre { position: relative; }
-pre .copy-btn {
-    position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
-    padding: 0.25rem 0.5rem;
-    font-size: 0.75rem;
-    background: rgba(60,60,70,0.9);
-    border: 1px solid rgba(255,255,255,0.3);
-    border-radius: 0.25rem;
-    color: #c0caf5;
-    cursor: pointer;
-    opacity: 0;
-    transition: opacity 0.15s;
-}
-pre:hover .copy-btn { opacity: 1; }
-pre .copy-btn:hover { background: rgba(80,80,95,0.95); }
-pre .copy-btn.copied { background: rgba(50,160,50,0.9); }
-</style>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('pre > code').forEach(function(code) {
-        var pre = code.parentElement;
-        if (pre.querySelector('.copy-btn')) return;
-        var btn = document.createElement('button');
-        btn.className = 'copy-btn';
-        btn.textContent = 'Copy';
-        btn.setAttribute('aria-label', 'Copy code to clipboard');
-        btn.onclick = function() {
-            navigator.clipboard.writeText(code.textContent).then(function() {
-                btn.textContent = 'Copied!';
-                btn.classList.add('copied');
-                setTimeout(function() {
-                    btn.textContent = 'Copy';
-                    btn.classList.remove('copied');
-                }, 2000);
-            });
-        };
-        pre.appendChild(btn);
-    });
-});
-</script>"##;
-
-/// CSS for page transitions and JS for sidebar active item scroll
-const PAGE_TRANSITIONS: &str = r##"<style>
-@view-transition { navigation: auto; }
-::view-transition-old(root) {
-    animation: fade-out 0.15s ease-out;
-}
-::view-transition-new(root) {
-    animation: fade-in 0.15s ease-in;
-}
-@keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
-@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-</style>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    var active = document.querySelector('nav a.active, aside a.active, .sidebar a.active, [aria-current="page"]');
-    if (active) active.scrollIntoView({ block: 'center' });
-});
-</script>"##;
-
 /// CSS and JS for build info icon on code blocks
 const BUILD_INFO_STYLES: &str = r##"<style>
 pre .build-info-btn {
@@ -578,7 +514,7 @@ pub fn inject_livereload_with_build_info(
 
     // Always inject copy button script and syntax highlighting styles for code blocks
     // Try to inject after <html, but fall back to after <!doctype html> if <html not found
-    let scripts_to_inject = format!("{SYNTAX_HIGHLIGHT_STYLES}{CODE_COPY_SCRIPT}{PAGE_TRANSITIONS}{build_info_assets}");
+    let scripts_to_inject = format!("{SYNTAX_HIGHLIGHT_STYLES}{build_info_assets}");
     if result.contains("<html") {
         result = result.replacen("<html", &format!("{scripts_to_inject}<html"), 1);
     } else if let Some(pos) = result.to_lowercase().find("<!doctype html>") {

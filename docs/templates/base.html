@@ -62,6 +62,7 @@
     </footer>
 
     <script src="/pagefind/pagefind-ui.js"></script>
+    <script src="/js/dodeca.js"></script>
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         new PagefindUI({
@@ -85,14 +86,6 @@
                 e.preventDefault();
                 searchInput.focus();
                 searchInput.select();
-            }
-        });
-
-        // Highlight current page in sidebar
-        const currentPath = window.location.pathname;
-        document.querySelectorAll('.sidebar-nav a').forEach(link => {
-            if (link.getAttribute('href') === currentPath) {
-                link.classList.add('active');
             }
         });
     });

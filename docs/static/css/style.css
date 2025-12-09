@@ -532,3 +532,43 @@ footer a:hover {
         font-size: 1.75rem;
     }
 }
+
+/* ============================================
+   Page Transitions
+   ============================================ */
+@view-transition { navigation: auto; }
+::view-transition-old(root) {
+    animation: fade-out 0.15s ease-out;
+}
+::view-transition-new(root) {
+    animation: fade-in 0.15s ease-in;
+}
+@keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* Override visited link colors in sidebar */
+.sidebar a:visited, .sidebar-nav a:visited, .sidebar-section a:visited {
+    color: inherit;
+}
+
+/* ============================================
+   Copy Button for Code Blocks
+   ============================================ */
+pre { position: relative; }
+pre .copy-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    background: rgba(60,60,70,0.9);
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 0.25rem;
+    color: #c0caf5;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+pre:hover .copy-btn { opacity: 1; }
+pre .copy-btn:hover { background: rgba(80,80,95,0.95); }
+pre .copy-btn.copied { background: rgba(50,160,50,0.9); }
