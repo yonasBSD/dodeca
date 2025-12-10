@@ -70,18 +70,12 @@ fn scss_change_triggers_rebuild() {
     site.wait_debounce();
 
     // Modify the SCSS file
-    site.modify_file("sass/main.scss", |scss| {
-        scss.replace("#3498db", "#ff0000")
-    });
+    site.modify_file("sass/main.scss", |scss| scss.replace("#3498db", "#ff0000"));
 
     // Wait for the CSS URL to change
     let css_url_2 = site.wait_until(Duration::from_secs(10), || {
         let url = site.get("/").css_link("/main.*.css")?;
-        if url != css_url_1 {
-            Some(url)
-        } else {
-            None
-        }
+        if url != css_url_1 { Some(url) } else { None }
     });
 
     let css = site.get(&css_url_2);

@@ -1,11 +1,11 @@
 //! Devtools UI components
 
-mod overlay;
 mod error_panel;
-mod scope_explorer;
+mod overlay;
 mod repl;
+mod scope_explorer;
 
-pub use overlay::DevtoolsOverlay;
 pub use error_panel::ErrorPanel;
-pub use scope_explorer::ScopeExplorer;
+pub use overlay::DevtoolsOverlay;
 pub use repl::Repl;
+pub use scope_explorer::ScopeExplorer;

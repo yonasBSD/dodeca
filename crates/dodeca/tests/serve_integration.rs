@@ -2,12 +2,12 @@
 //!
 //! These tests verify that all pages are accessible when serving a site.
 
+use regex::Regex;
 use std::fs;
 use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
-use regex::Regex;
 
 /// RAII guard for temp directories - tempfile::TempDir with a type alias for clarity
 type TempDirGuard = tempfile::TempDir;
@@ -21,7 +21,6 @@ struct ServerHandle {
     /// Drops last to ensure fixture persists until server is killed
     _fixture_guard: TempDirGuard,
 }
-
 
 impl Drop for ServerHandle {
     fn drop(&mut self) {
@@ -54,7 +53,10 @@ fn create_isolated_fixture(fixture_rel: &str) -> color_eyre::Result<(PathBuf, Te
 
     // Use tempfile for guaranteed unique temp directories
     let temp_dir = tempfile::Builder::new()
-        .prefix(&format!("dodeca-fixture-{}-", fixture_rel.replace('/', "-")))
+        .prefix(&format!(
+            "dodeca-fixture-{}-",
+            fixture_rel.replace('/', "-")
+        ))
         .tempdir()?;
 
     let dst = temp_dir.path().to_path_buf();
@@ -70,7 +72,11 @@ fn create_isolated_fixture(fixture_rel: &str) -> color_eyre::Result<(PathBuf, Te
 }
 
 /// Start the server with given args, wait for LISTENING_PORT=...
-fn start_server_with_args(args: &[&str], fixture_dir: PathBuf, fixture_guard: TempDirGuard) -> ServerHandle {
+fn start_server_with_args(
+    args: &[&str],
+    fixture_dir: PathBuf,
+    fixture_guard: TempDirGuard,
+) -> ServerHandle {
     tracing::debug!(
         fixture_dir = %fixture_dir.display(),
         args = ?args,
@@ -127,7 +133,12 @@ fn start_server_with_args(args: &[&str], fixture_dir: PathBuf, fixture_guard: Te
         }
     });
 
-    ServerHandle { child, port, fixture_dir, _fixture_guard: fixture_guard }
+    ServerHandle {
+        child,
+        port,
+        fixture_dir,
+        _fixture_guard: fixture_guard,
+    }
 }
 
 /// Start the server in plain mode (no TUI)
@@ -135,7 +146,11 @@ fn start_server(fixture_path: &str) -> ServerHandle {
     let (fixture_dir, guard) = create_isolated_fixture(fixture_path).expect("copy fixture");
     let fixture_str = fixture_dir.to_string_lossy().to_string();
 
-    start_server_with_args(&["serve", &fixture_str, "--no-tui", "-p", "0"], fixture_dir, guard)
+    start_server_with_args(
+        &["serve", &fixture_str, "--no-tui", "-p", "0"],
+        fixture_dir,
+        guard,
+    )
 }
 
 /// Wait for server to be ready by polling the root endpoint
@@ -398,7 +413,11 @@ body {
 fn start_server_tui(fixture_path: &str) -> ServerHandle {
     let (fixture_dir, guard) = create_isolated_fixture(fixture_path).expect("copy fixture");
     let fixture_str = fixture_dir.to_string_lossy().to_string();
-    start_server_with_args(&["serve", &fixture_str, "--force-tui", "-p", "0"], fixture_dir, guard)
+    start_server_with_args(
+        &["serve", &fixture_str, "--force-tui", "-p", "0"],
+        fixture_dir,
+        guard,
+    )
 }
 
 /// Test that CSS changes are picked up in TUI mode (livereload)
@@ -532,7 +551,12 @@ fn start_server_tui_in_dir(dir: &str) -> ServerHandle {
     }
 
     let port = port.expect("Server did not print LISTENING_PORT");
-    ServerHandle { child, port, fixture_dir: dst, _fixture_guard: temp_dir }
+    ServerHandle {
+        child,
+        port,
+        fixture_dir: dst,
+        _fixture_guard: temp_dir,
+    }
 }
 
 /// Test CSS livereload in TUI mode using docs directory (mimics user workflow)
@@ -649,7 +673,11 @@ fn test_new_content_file_detected() {
         .get(format!("http://127.0.0.1:{}/new-page/", port))
         .send()
         .expect("Failed to fetch new page");
-    assert_eq!(resp.status().as_u16(), 404, "New page should not exist initially");
+    assert_eq!(
+        resp.status().as_u16(),
+        404,
+        "New page should not exist initially"
+    );
 
     // Create the new page
     let new_page_content = r#"+++
@@ -744,7 +772,10 @@ This page will be deleted.
     let url = format!("http://127.0.0.1:{}/temp-page/", port);
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
-        let resp = client.get(&url).send().expect("Failed to fetch temp page after deletion");
+        let resp = client
+            .get(&url)
+            .send()
+            .expect("Failed to fetch temp page after deletion");
         let status = resp.status();
         if status.as_u16() == 404 {
             break;
@@ -788,7 +819,11 @@ fn test_new_section_detected() {
         .get(format!("http://127.0.0.1:{}/new-section/", port))
         .send()
         .expect("Failed to fetch new section");
-    assert_eq!(resp.status().as_u16(), 404, "New section should not exist initially");
+    assert_eq!(
+        resp.status().as_u16(),
+        404,
+        "New section should not exist initially"
+    );
 
     // Create the new section directory and _index.md
     std::fs::create_dir_all(&new_section_dir).expect("Failed to create section dir");
@@ -860,7 +895,11 @@ fn test_deeply_nested_new_section() {
         .get(format!("http://127.0.0.1:{}/level1/level2/level3/", port))
         .send()
         .expect("Failed to fetch nested section");
-    assert_eq!(resp.status().as_u16(), 404, "Nested section should not exist initially");
+    assert_eq!(
+        resp.status().as_u16(),
+        404,
+        "Nested section should not exist initially"
+    );
 
     // Create the entire nested directory structure and _index.md in one go
     std::fs::create_dir_all(&nested_dir).expect("Failed to create nested dirs");
@@ -937,9 +976,10 @@ This page will be moved.
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
         if let Ok(resp) = client.get(&original_url).send()
-            && resp.status().is_success() {
-                break;
-            }
+            && resp.status().is_success()
+        {
+            break;
+        }
         if Instant::now() >= deadline {
             panic!("Original page should be accessible within 10s");
         }
@@ -977,17 +1017,14 @@ This page will be moved.
         std::thread::sleep(Duration::from_millis(100));
     }
 
-    assert!(
-        old_is_404,
-        "Old URL should return 404 after file move"
-    );
-    assert!(
-        new_is_200,
-        "New URL should be accessible after file move"
-    );
+    assert!(old_is_404, "Old URL should return 404 after file move");
+    assert!(new_is_200, "New URL should be accessible after file move");
 
     // Verify the content at the new location
-    let resp = client.get(&new_url).send().expect("Failed to fetch moved page");
+    let resp = client
+        .get(&new_url)
+        .send()
+        .expect("Failed to fetch moved page");
     let body = resp.text().expect("Failed to read body");
     assert!(
         body.contains("This page will be moved"),

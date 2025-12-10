@@ -11,7 +11,7 @@
 use std::collections::HashMap;
 
 use facet::Facet;
-use plugcard::{plugcard, PlugResult};
+use plugcard::{PlugResult, plugcard};
 
 // Re-export patch types from protocol
 pub use dodeca_protocol::{NodePath, Patch};
@@ -85,7 +85,11 @@ struct InternalDiffResult {
 
 impl DomNode {
     /// Create a new element node
-    fn element(tag: impl Into<String>, attrs: HashMap<String, String>, children: Vec<DomNode>) -> Self {
+    fn element(
+        tag: impl Into<String>,
+        attrs: HashMap<String, String>,
+        children: Vec<DomNode>,
+    ) -> Self {
         let mut node = Self {
             tag: tag.into(),
             attrs,
@@ -113,8 +117,8 @@ impl DomNode {
 
     /// Compute hash of this subtree (call after building the tree)
     fn compute_hash(&mut self) {
-        use std::hash::{Hash, Hasher};
         use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
 
         let mut hasher = DefaultHasher::new();
 
@@ -331,7 +335,7 @@ fn node_to_html(node: &DomNode) -> String {
 /// Returns the root element (typically <html> or a wrapper containing the parsed content)
 fn parse_html(html: &str) -> Option<DomNode> {
     use html5ever::tendril::TendrilSink;
-    use html5ever::{parse_document, ParseOpts};
+    use html5ever::{ParseOpts, parse_document};
     use markup5ever_rcdom::RcDom;
 
     let dom = parse_document(RcDom::default(), ParseOpts::default())
@@ -356,9 +360,10 @@ fn convert_rcdom_node(handle: &markup5ever_rcdom::Handle) -> Option<DomNode> {
             let children = handle.children.borrow();
             for child in children.iter() {
                 if let Some(node) = convert_rcdom_node(child)
-                    && node.tag != "#text" {
-                        return Some(node);
-                    }
+                    && node.tag != "#text"
+                {
+                    return Some(node);
+                }
             }
             None
         }
@@ -460,8 +465,16 @@ mod tests {
 
     #[test]
     fn test_replace_different_tag() {
-        let old = div(vec![DomNode::element("p", HashMap::new(), vec![DomNode::text("hi")])]);
-        let new = div(vec![DomNode::element("span", HashMap::new(), vec![DomNode::text("hi")])]);
+        let old = div(vec![DomNode::element(
+            "p",
+            HashMap::new(),
+            vec![DomNode::text("hi")],
+        )]);
+        let new = div(vec![DomNode::element(
+            "span",
+            HashMap::new(),
+            vec![DomNode::text("hi")],
+        )]);
 
         let result = diff(&old, &new);
         assert_eq!(result.patches.len(), 1);

@@ -380,11 +380,7 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
 
 /// Truncate a string for display
 fn truncate(s: &str, max_len: usize) -> &str {
-    if s.len() <= max_len {
-        s
-    } else {
-        &s[..max_len]
-    }
+    if s.len() <= max_len { s } else { &s[..max_len] }
 }
 
 /// Result of running `ddc build` on a fixture
@@ -421,7 +417,8 @@ impl BuildResult {
         assert!(
             combined.contains(needle),
             "output should contain '{needle}'.\nstdout:\n{}\nstderr:\n{}",
-            self.stdout, self.stderr
+            self.stdout,
+            self.stderr
         );
         self
     }

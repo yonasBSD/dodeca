@@ -280,8 +280,7 @@ mod tests {
 
     #[test]
     fn test_git_branch_dep() {
-        let dep =
-            DependencySpec::git_branch("facet", "https://github.com/facet-rs/facet", "main");
+        let dep = DependencySpec::git_branch("facet", "https://github.com/facet-rs/facet", "main");
         assert_eq!(
             dep.to_cargo_toml_line(),
             "facet = { git = \"https://github.com/facet-rs/facet\", branch = \"main\" }"

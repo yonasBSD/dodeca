@@ -4,12 +4,12 @@ use dioxus::prelude::*;
 use glade::components::{
     button::{Button, ButtonVariant},
     icon_button::{IconButton, IconButtonSize},
-    icons::{IconTriangleAlert, IconSearch, IconX, IconMaximize, IconMinimize, IconChevronRight},
-    tabs::{Tabs, TabList, Tab, TabsVariant},
+    icons::{IconChevronRight, IconMaximize, IconMinimize, IconSearch, IconTriangleAlert, IconX},
+    tabs::{Tab, TabList, Tabs, TabsVariant},
 };
 
+use super::{ErrorPanel, Repl, ScopeExplorer};
 use crate::state::{DevtoolsState, DevtoolsTab, PanelSize};
-use super::{ErrorPanel, ScopeExplorer, Repl};
 
 /// Inline dodeca logo SVG
 const DODECA_LOGO: &str = r##"<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" width="18" height="18">

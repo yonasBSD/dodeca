@@ -85,11 +85,22 @@ pub const PLUGIN_GROUPS: &[PluginGroup] = &[
     },
     PluginGroup {
         name: "web",
-        plugins: &["dodeca-minify", "dodeca-css", "dodeca-sass", "dodeca-html-diff"],
+        plugins: &[
+            "dodeca-minify",
+            "dodeca-css",
+            "dodeca-sass",
+            "dodeca-html-diff",
+        ],
     },
     PluginGroup {
         name: "misc",
-        plugins: &["dodeca-fonts", "dodeca-pagefind", "dodeca-linkcheck", "dodeca-svgo", "dodeca-baseline"],
+        plugins: &[
+            "dodeca-fonts",
+            "dodeca-pagefind",
+            "dodeca-linkcheck",
+            "dodeca-svgo",
+            "dodeca-baseline",
+        ],
     },
     PluginGroup {
         name: "js",
@@ -415,12 +426,11 @@ pub mod common {
     }
 
     pub fn download_all_artifacts(path: impl Into<String>) -> Step {
-        Step::uses("Download all artifacts", "actions/download-artifact@v4")
-            .with_inputs([
-                ("path", path.into()),
-                ("pattern", "build-*".to_string()),
-                ("merge-multiple", "true".to_string()),
-            ])
+        Step::uses("Download all artifacts", "actions/download-artifact@v4").with_inputs([
+            ("path", path.into()),
+            ("pattern", "build-*".to_string()),
+            ("merge-multiple", "true".to_string()),
+        ])
     }
 }
 
@@ -507,11 +517,11 @@ pub fn build_ci_workflow() -> Workflow {
                     Step::run("Build ddc", "cargo build --release -p dodeca"),
                     Step::run("Verify ddc binary exists", "ls -la target/release/ddc"),
                     Step::run("Run ddc unit tests", "cargo test --release -p dodeca --lib"),
-                    Step::run("Clippy", "cargo clippy --all-features --all-targets -- -D warnings"),
-                    upload_artifact(
-                        format!("ddc-{os}"),
-                        "target/release/ddc",
+                    Step::run(
+                        "Clippy",
+                        "cargo clippy --all-features --all-targets -- -D warnings",
                     ),
+                    upload_artifact(format!("ddc-{os}"), "target/release/ddc"),
                 ]),
         );
 
@@ -520,17 +530,23 @@ pub fn build_ci_workflow() -> Workflow {
 
         for group in PLUGIN_GROUPS {
             let job_id = format!("build-plugins-{}-{os}", group.name);
-            let plugins_arg: String = group.plugins.iter()
+            let plugins_arg: String = group
+                .plugins
+                .iter()
                 .map(|p| format!("-p {p}"))
                 .collect::<Vec<_>>()
                 .join(" ");
-            let test_arg: String = group.plugins.iter()
+            let test_arg: String = group
+                .plugins
+                .iter()
                 .map(|p| format!("-p {p}"))
                 .collect::<Vec<_>>()
                 .join(" ");
 
             // Build the glob pattern for uploading plugin .so/.dylib files
-            let upload_paths: String = group.plugins.iter()
+            let upload_paths: String = group
+                .plugins
+                .iter()
                 .map(|p| {
                     let lib_name = p.replace('-', "_");
                     format!("target/release/{lib_prefix}{lib_name}.{lib_ext}")
@@ -577,18 +593,16 @@ pub fn build_ci_workflow() -> Workflow {
                     Step::uses("Install Rust", "dtolnay/rust-toolchain@stable"),
                     rust_cache(),
                     // Download ddc binary
-                    Step::uses("Download ddc", "actions/download-artifact@v4")
-                        .with_inputs([
-                            ("name", format!("ddc-{os}")),
-                            ("path", "artifacts/bin".into()),
-                        ]),
+                    Step::uses("Download ddc", "actions/download-artifact@v4").with_inputs([
+                        ("name", format!("ddc-{os}")),
+                        ("path", "artifacts/bin".into()),
+                    ]),
                     // Download all plugin artifacts
-                    Step::uses("Download plugins", "actions/download-artifact@v4")
-                        .with_inputs([
-                            ("pattern", format!("plugins-*-{os}")),
-                            ("path", "artifacts/plugins".into()),
-                            ("merge-multiple", "true".into()),
-                        ]),
+                    Step::uses("Download plugins", "actions/download-artifact@v4").with_inputs([
+                        ("pattern", format!("plugins-*-{os}")),
+                        ("path", "artifacts/plugins".into()),
+                        ("merge-multiple", "true".into()),
+                    ]),
                     Step::run("List artifacts", "ls -laR artifacts/"),
                     Step::run("Make ddc executable", "chmod +x artifacts/bin/ddc"),
                     Step::run(
@@ -597,7 +611,10 @@ pub fn build_ci_workflow() -> Workflow {
                     )
                     .with_env([
                         ("DODECA_BIN", "${{ github.workspace }}/artifacts/bin/ddc"),
-                        ("DODECA_PLUGINS", "${{ github.workspace }}/artifacts/plugins"),
+                        (
+                            "DODECA_PLUGINS",
+                            "${{ github.workspace }}/artifacts/plugins",
+                        ),
                     ]),
                 ]),
         );
@@ -636,14 +653,15 @@ pub fn build_release_workflow() -> Workflow {
         let job_id = format!("build-{}", target.short_name());
         let archive_name = format!("dodeca-{}.{}", target.triple, target.archive_ext);
 
-        let mut steps = vec![
-            checkout(),
-        ];
+        let mut steps = vec![checkout()];
 
         // Linux ARM needs cross-compilation tools
         if target.triple == "aarch64-unknown-linux-gnu" {
             steps.push(install_rust_with_target(target.triple));
-            steps.push(Step::run("Install cross-compilation tools", "sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu"));
+            steps.push(Step::run(
+                "Install cross-compilation tools",
+                "sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu",
+            ));
             steps.push(rust_cache());
         } else {
             steps.push(install_rust_with_target(target.triple));
@@ -654,19 +672,28 @@ pub fn build_release_workflow() -> Workflow {
         steps.push(Step::run("Build WASM crates", "bash scripts/build-wasm.sh").shell("bash"));
 
         // Build target (uses external script)
-        steps.push(Step::run(
-            "Build ddc and plugins",
-            format!("bash scripts/build-target.sh {}", target.triple),
-        ).shell("bash"));
+        steps.push(
+            Step::run(
+                "Build ddc and plugins",
+                format!("bash scripts/build-target.sh {}", target.triple),
+            )
+            .shell("bash"),
+        );
 
         // Assemble archive (uses external script)
-        steps.push(Step::run(
-            "Assemble archive",
-            format!("bash scripts/assemble-archive.sh {}", target.triple),
-        ).shell("bash"));
+        steps.push(
+            Step::run(
+                "Assemble archive",
+                format!("bash scripts/assemble-archive.sh {}", target.triple),
+            )
+            .shell("bash"),
+        );
 
         // Upload
-        steps.push(upload_artifact(format!("build-{}", target.short_name()), archive_name));
+        steps.push(upload_artifact(
+            format!("build-{}", target.short_name()),
+            archive_name,
+        ));
 
         let mut job = Job::new(target.runner)
             .name(format!("Build ({})", target.short_name()))
@@ -681,7 +708,10 @@ pub fn build_release_workflow() -> Workflow {
     }
 
     // Release job - creates GitHub release with all artifacts
-    let build_job_ids: Vec<String> = TARGETS.iter().map(|t| format!("build-{}", t.short_name())).collect();
+    let build_job_ids: Vec<String> = TARGETS
+        .iter()
+        .map(|t| format!("build-{}", t.short_name()))
+        .collect();
 
     jobs.insert(
         "release".into(),
@@ -697,13 +727,22 @@ pub fn build_release_workflow() -> Workflow {
                 checkout(),
                 download_all_artifacts("dist"),
                 Step::run("Prepare release", "bash scripts/release.sh").shell("bash"),
-                Step::run("Create GitHub Release", r#"
+                Step::run(
+                    "Create GitHub Release",
+                    r#"
 gh release create "${{ github.ref_name }}" \
   --title "dodeca ${{ github.ref_name }}" \
   --generate-notes \
   dist/*
-"#.trim()).shell("bash"),
-                Step::run("Update Homebrew tap", r#"bash scripts/update-homebrew.sh "${{ github.ref_name }}""#).shell("bash"),
+"#
+                    .trim(),
+                )
+                .shell("bash"),
+                Step::run(
+                    "Update Homebrew tap",
+                    r#"bash scripts/update-homebrew.sh "${{ github.ref_name }}""#,
+                )
+                .shell("bash"),
             ]),
     );
 
@@ -741,7 +780,8 @@ gh release create "${{ github.ref_name }}" \
 use camino::Utf8Path;
 use miette::Result;
 
-const GENERATED_HEADER: &str = "# GENERATED BY: cargo xtask ci\n# DO NOT EDIT - edit xtask/src/ci.rs instead\n\n";
+const GENERATED_HEADER: &str =
+    "# GENERATED BY: cargo xtask ci\n# DO NOT EDIT - edit xtask/src/ci.rs instead\n\n";
 
 // =============================================================================
 // Installer scripts
@@ -751,7 +791,8 @@ const GENERATED_HEADER: &str = "# GENERATED BY: cargo xtask ci\n# DO NOT EDIT - 
 pub fn generate_installer_script() -> String {
     let repo = "bearcove/dodeca";
 
-    format!(r##"#!/bin/sh
+    format!(
+        r##"#!/bin/sh
 # Installer for dodeca
 # Usage: curl -fsSL https://raw.githubusercontent.com/{repo}/main/install.sh | sh
 
@@ -849,14 +890,17 @@ main() {{
 }}
 
 main "$@"
-"##, repo = repo)
+"##,
+        repo = repo
+    )
 }
 
 /// Generate the PowerShell installer script content.
 pub fn generate_powershell_installer() -> String {
     let repo = "bearcove/dodeca";
 
-    format!(r##"# Installer for dodeca
+    format!(
+        r##"# Installer for dodeca
 # Usage: powershell -ExecutionPolicy Bypass -c "irm https://github.com/{repo}/releases/latest/download/dodeca-installer.ps1 | iex"
 
 $ErrorActionPreference = 'Stop'
@@ -953,7 +997,9 @@ function Main {{
 }}
 
 Main
-"##, repo = repo)
+"##,
+        repo = repo
+    )
 }
 
 /// Helper to serialize a workflow to YAML with the generated header.

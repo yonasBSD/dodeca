@@ -326,8 +326,12 @@ pub fn get_cached_image(content_hash: &InputHash) -> Option<ProcessedImages> {
 
 /// Store processed images by input content hash
 pub fn put_cached_image(content_hash: &InputHash, images: &ProcessedImages) {
-    let Some(path) = blob_path(content_hash, "img") else { return };
-    let Ok(data) = postcard::to_allocvec(images) else { return };
+    let Some(path) = blob_path(content_hash, "img") else {
+        return;
+    };
+    let Ok(data) = postcard::to_allocvec(images) else {
+        return;
+    };
 
     // Ensure subdirectory exists
     if let Some(parent) = path.parent() {
@@ -351,7 +355,9 @@ pub fn get_cached_decompressed_font(content_hash: &InputHash) -> Option<Vec<u8>>
 
 /// Store decompressed font (TTF) by input content hash
 pub fn put_cached_decompressed_font(content_hash: &InputHash, ttf_data: &[u8]) {
-    let Some(path) = blob_path(content_hash, "ttf") else { return };
+    let Some(path) = blob_path(content_hash, "ttf") else {
+        return;
+    };
 
     // Ensure subdirectory exists
     if let Some(parent) = path.parent() {

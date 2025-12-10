@@ -104,14 +104,20 @@ pub fn execute_code_samples(input: ExecuteSamplesInput) -> PlugResult<ExecuteSam
     }
 
     // Check if we have any Rust samples to execute
-    let has_rust_samples = input.samples.iter().any(|s| {
-        s.executable && (s.language == "rust" || s.language == "rs")
-    });
+    let has_rust_samples = input
+        .samples
+        .iter()
+        .any(|s| s.executable && (s.language == "rust" || s.language == "rs"));
 
     // Prepare the shared target directory with all deps pre-compiled
     // All samples will share this target dir via CARGO_TARGET_DIR
     let shared_target_info = if has_rust_samples {
-        match prepare_rust_shared_target(&input.config.dependencies, project_root, &cache_dir, input.config.timeout_secs) {
+        match prepare_rust_shared_target(
+            &input.config.dependencies,
+            project_root,
+            &cache_dir,
+            input.config.timeout_secs,
+        ) {
             Ok(info) => Some(info),
             Err(e) => {
                 plugcard::log_warn!("Failed to prepare shared target: {}", e);
@@ -160,11 +166,11 @@ pub fn execute_code_samples(input: ExecuteSamplesInput) -> PlugResult<ExecuteSam
 
 /// Nightly cargo flags for shared target support
 const NIGHTLY_FLAGS: &[&str] = &[
-    "-Zbuild-dir-new-layout",  // New layout that enables artifact sharing across projects
-    "-Zchecksum-freshness",    // Use checksums instead of mtimes for freshness
-    "-Zbinary-dep-depinfo",    // Track binary deps (proc-macros) for proper rebuilds
-    "-Zgc",                    // Enable garbage collection for cargo cache
-    "-Zno-index-update",       // Skip registry index updates (deps already cached)
+    "-Zbuild-dir-new-layout", // New layout that enables artifact sharing across projects
+    "-Zchecksum-freshness",   // Use checksums instead of mtimes for freshness
+    "-Zbinary-dep-depinfo",   // Track binary deps (proc-macros) for proper rebuilds
+    "-Zgc",                   // Enable garbage collection for cargo cache
+    "-Zno-index-update",      // Skip registry index updates (deps already cached)
 ];
 
 /// Result of preparing the shared target directory
@@ -184,7 +190,8 @@ fn prepare_rust_shared_target(
 ) -> Result<SharedTargetInfo, String> {
     // Canonicalize cache_dir to get absolute paths - this is critical because
     // cargo interprets CARGO_TARGET_DIR relative to the project directory
-    let cache_dir = cache_dir.canonicalize()
+    let cache_dir = cache_dir
+        .canonicalize()
         .map_err(|e| format!("Failed to canonicalize cache dir: {}", e))?;
     let base_project_dir = cache_dir.join("base_project");
     let shared_target_dir = cache_dir.join("target");
@@ -224,8 +231,7 @@ fn prepare_rust_shared_target(
 
     // Create minimal src/main.rs that references all deps to ensure they're compiled
     let src_dir = base_project_dir.join("src");
-    fs::create_dir_all(&src_dir)
-        .map_err(|e| format!("Failed to create base src dir: {}", e))?;
+    fs::create_dir_all(&src_dir).map_err(|e| format!("Failed to create base src dir: {}", e))?;
 
     // Generate main.rs that imports all dependencies to force compilation
     let main_rs = generate_base_main_rs(dependencies);
@@ -259,7 +265,10 @@ fn prepare_rust_shared_target(
     }
 
     if !output.status.success() {
-        return Err(format!("Base project build failed with code: {:?}", output.status.code()));
+        return Err(format!(
+            "Base project build failed with code: {:?}",
+            output.status.code()
+        ));
     }
 
     // Capture metadata for fresh build (cache_hit = false)
@@ -490,7 +499,10 @@ fn execute_rust_sample(
 }
 
 /// Generate Cargo.toml with dependencies
-fn generate_cargo_toml(dependencies: &[DependencySpec], project_root: Option<&std::path::Path>) -> String {
+fn generate_cargo_toml(
+    dependencies: &[DependencySpec],
+    project_root: Option<&std::path::Path>,
+) -> String {
     let mut lines = vec![
         "[package]".to_string(),
         "name = \"dodeca-code-sample\"".to_string(),
@@ -583,10 +595,7 @@ fn _execute_with_timeout(cmd: &mut Command, timeout_secs: u64) -> Result<Output,
 }
 
 /// Execute a command with timeout (piped streams, returns Output with stdout/stderr)
-fn execute_with_timeout_capture(
-    cmd: &mut Command,
-    timeout_secs: u64,
-) -> Result<Output, String> {
+fn execute_with_timeout_capture(cmd: &mut Command, timeout_secs: u64) -> Result<Output, String> {
     use std::io::Read;
     use std::time::Instant;
 
@@ -612,7 +621,11 @@ fn execute_with_timeout_capture(
                     let _ = stderr_pipe.read_to_end(&mut stderr);
                 }
 
-                return Ok(Output { status, stdout, stderr });
+                return Ok(Output {
+                    status,
+                    stdout,
+                    stderr,
+                });
             }
             Ok(None) => {
                 // Process still running, check timeout
@@ -742,7 +755,11 @@ fn parse_cargo_lock(lock_path: &std::path::Path) -> Vec<ResolvedDependency> {
             // Save previous package if complete
             if let (Some(name), Some(version)) = (current_name.take(), current_version.take()) {
                 let source = parse_dependency_source(current_source.take());
-                deps.push(ResolvedDependency { name, version, source });
+                deps.push(ResolvedDependency {
+                    name,
+                    version,
+                    source,
+                });
             }
             current_source = None;
         } else if let Some(name) = line.strip_prefix("name = ") {
@@ -757,7 +774,11 @@ fn parse_cargo_lock(lock_path: &std::path::Path) -> Vec<ResolvedDependency> {
     // Don't forget the last package
     if let (Some(name), Some(version)) = (current_name, current_version) {
         let source = parse_dependency_source(current_source);
-        deps.push(ResolvedDependency { name, version, source });
+        deps.push(ResolvedDependency {
+            name,
+            version,
+            source,
+        });
     }
 
     deps
@@ -786,11 +807,7 @@ fn parse_dependency_source(source: Option<String>) -> DependencySource {
             };
 
             // Remove query params (branch, rev, etc.) from URL
-            let url = url_part
-                .split('?')
-                .next()
-                .unwrap_or(url_part)
-                .to_string();
+            let url = url_part.split('?').next().unwrap_or(url_part).to_string();
 
             DependencySource::Git { url, commit }
         }
@@ -807,10 +824,7 @@ fn parse_dependency_source(source: Option<String>) -> DependencySource {
 }
 
 /// Capture complete build metadata
-fn capture_build_metadata(
-    cache_dir: &std::path::Path,
-    cache_hit: bool,
-) -> BuildMetadata {
+fn capture_build_metadata(cache_dir: &std::path::Path, cache_hit: bool) -> BuildMetadata {
     let rustc_version = capture_rustc_version();
     let cargo_version = capture_cargo_version();
     let target = extract_target_from_rustc(&rustc_version);

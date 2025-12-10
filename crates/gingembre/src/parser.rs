@@ -142,7 +142,9 @@ impl Parser {
                 let found = format!("{:?}", self.current.kind);
                 Err(SyntaxError {
                     found,
-                    expected: "if, for, block, extends, include, import, macro, set, continue, or break".to_string(),
+                    expected:
+                        "if, for, block, extends, include, import, macro, set, continue, or break"
+                            .to_string(),
                     span,
                     src: self.source.named_source(),
                 })?
@@ -211,7 +213,9 @@ impl Parser {
                 let found = format!("{:?}", self.current.kind);
                 return Err(SyntaxError {
                     found,
-                    expected: "if, for, block, extends, include, import, macro, set, continue, or break".to_string(),
+                    expected:
+                        "if, for, block, extends, include, import, macro, set, continue, or break"
+                            .to_string(),
                     span,
                     src: self.source.named_source(),
                 })?;

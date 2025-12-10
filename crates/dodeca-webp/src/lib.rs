@@ -1,7 +1,7 @@
 //! WebP encoding and decoding plugin for dodeca
 
 use facet::Facet;
-use plugcard::{plugcard, PlugResult};
+use plugcard::{PlugResult, plugcard};
 
 plugcard::export_plugin!();
 
@@ -63,10 +63,10 @@ mod tests {
     fn test_encode_webp() {
         // 2x2 red pixels (RGBA)
         let pixels = vec![
-            255, 0, 0, 255,  // red
-            255, 0, 0, 255,  // red
-            255, 0, 0, 255,  // red
-            255, 0, 0, 255,  // red
+            255, 0, 0, 255, // red
+            255, 0, 0, 255, // red
+            255, 0, 0, 255, // red
+            255, 0, 0, 255, // red
         ];
 
         let result = encode_webp(pixels, 2, 2, 80);

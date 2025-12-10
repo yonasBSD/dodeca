@@ -115,8 +115,7 @@ This is a dynamically created page.
 
     // Wait for file watcher to pick up the change
     let resp = site.wait_for("/new-page/", Duration::from_secs(10));
-    resp.assert_ok()
-        .assert_contains("dynamically created");
+    resp.assert_ok().assert_contains("dynamically created");
 }
 
 /// Test that deleted content files result in 404
@@ -144,10 +143,6 @@ This page will be deleted.
     // Wait for the page to return 404
     site.wait_until(Duration::from_secs(10), || {
         let resp = site.get("/temp-page/");
-        if resp.status == 404 {
-            Some(())
-        } else {
-            None
-        }
+        if resp.status == 404 { Some(()) } else { None }
     });
 }

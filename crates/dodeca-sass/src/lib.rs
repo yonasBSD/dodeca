@@ -3,7 +3,7 @@
 //! Compiles SASS/SCSS to CSS using grass.
 
 use facet::Facet;
-use plugcard::{plugcard, PlugResult};
+use plugcard::{PlugResult, plugcard};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -106,10 +106,7 @@ mod tests {
     #[test]
     fn test_compile_with_import() {
         let mut files = HashMap::new();
-        files.insert(
-            "_variables.scss".to_string(),
-            "$primary: blue;".to_string(),
-        );
+        files.insert("_variables.scss".to_string(), "$primary: blue;".to_string());
         files.insert(
             "main.scss".to_string(),
             r#"

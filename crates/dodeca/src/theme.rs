@@ -73,35 +73,89 @@ pub trait TokyoNight<'a> {
 }
 
 impl<'a> TokyoNight<'a> for Span<'a> {
-    fn tn_blue(self) -> Span<'a> { self.fg(BLUE) }
-    fn tn_cyan(self) -> Span<'a> { self.fg(CYAN) }
-    fn tn_green(self) -> Span<'a> { self.fg(GREEN) }
-    fn tn_magenta(self) -> Span<'a> { self.fg(MAGENTA) }
-    fn tn_red(self) -> Span<'a> { self.fg(RED) }
-    fn tn_yellow(self) -> Span<'a> { self.fg(YELLOW) }
-    fn tn_orange(self) -> Span<'a> { self.fg(ORANGE) }
-    fn tn_purple(self) -> Span<'a> { self.fg(PURPLE) }
-    fn tn_teal(self) -> Span<'a> { self.fg(TEAL) }
-    fn tn_pink(self) -> Span<'a> { self.fg(PINK) }
+    fn tn_blue(self) -> Span<'a> {
+        self.fg(BLUE)
+    }
+    fn tn_cyan(self) -> Span<'a> {
+        self.fg(CYAN)
+    }
+    fn tn_green(self) -> Span<'a> {
+        self.fg(GREEN)
+    }
+    fn tn_magenta(self) -> Span<'a> {
+        self.fg(MAGENTA)
+    }
+    fn tn_red(self) -> Span<'a> {
+        self.fg(RED)
+    }
+    fn tn_yellow(self) -> Span<'a> {
+        self.fg(YELLOW)
+    }
+    fn tn_orange(self) -> Span<'a> {
+        self.fg(ORANGE)
+    }
+    fn tn_purple(self) -> Span<'a> {
+        self.fg(PURPLE)
+    }
+    fn tn_teal(self) -> Span<'a> {
+        self.fg(TEAL)
+    }
+    fn tn_pink(self) -> Span<'a> {
+        self.fg(PINK)
+    }
 
-    fn tn_fg(self) -> Span<'a> { self.fg(FG) }
-    fn tn_fg_dark(self) -> Span<'a> { self.fg(FG_DARK) }
-    fn tn_muted(self) -> Span<'a> { self.fg(FG_GUTTER) }
+    fn tn_fg(self) -> Span<'a> {
+        self.fg(FG)
+    }
+    fn tn_fg_dark(self) -> Span<'a> {
+        self.fg(FG_DARK)
+    }
+    fn tn_muted(self) -> Span<'a> {
+        self.fg(FG_GUTTER)
+    }
 
-    fn tn_path(self) -> Span<'a> { self.fg(MAGENTA) }
-    fn tn_url(self) -> Span<'a> { self.fg(BLUE) }
-    fn tn_file_change(self) -> Span<'a> { self.fg(ORANGE) }
-    fn tn_reload(self) -> Span<'a> { self.fg(YELLOW) }
-    fn tn_patch(self) -> Span<'a> { self.fg(GREEN) }
-    fn tn_search(self) -> Span<'a> { self.fg(CYAN) }
-    fn tn_server(self) -> Span<'a> { self.fg(BLUE) }
-    fn tn_build(self) -> Span<'a> { self.fg(PURPLE) }
-    fn tn_timing(self) -> Span<'a> { self.fg(ORANGE) }
-    fn tn_success(self) -> Span<'a> { self.fg(GREEN) }
-    fn tn_warning(self) -> Span<'a> { self.fg(YELLOW) }
-    fn tn_error(self) -> Span<'a> { self.fg(RED) }
-    fn tn_info(self) -> Span<'a> { self.fg(BLUE) }
-    fn tn_hint(self) -> Span<'a> { self.fg(TEAL) }
+    fn tn_path(self) -> Span<'a> {
+        self.fg(MAGENTA)
+    }
+    fn tn_url(self) -> Span<'a> {
+        self.fg(BLUE)
+    }
+    fn tn_file_change(self) -> Span<'a> {
+        self.fg(ORANGE)
+    }
+    fn tn_reload(self) -> Span<'a> {
+        self.fg(YELLOW)
+    }
+    fn tn_patch(self) -> Span<'a> {
+        self.fg(GREEN)
+    }
+    fn tn_search(self) -> Span<'a> {
+        self.fg(CYAN)
+    }
+    fn tn_server(self) -> Span<'a> {
+        self.fg(BLUE)
+    }
+    fn tn_build(self) -> Span<'a> {
+        self.fg(PURPLE)
+    }
+    fn tn_timing(self) -> Span<'a> {
+        self.fg(ORANGE)
+    }
+    fn tn_success(self) -> Span<'a> {
+        self.fg(GREEN)
+    }
+    fn tn_warning(self) -> Span<'a> {
+        self.fg(YELLOW)
+    }
+    fn tn_error(self) -> Span<'a> {
+        self.fg(RED)
+    }
+    fn tn_info(self) -> Span<'a> {
+        self.fg(BLUE)
+    }
+    fn tn_hint(self) -> Span<'a> {
+        self.fg(TEAL)
+    }
 }
 
 /// Get the color for an HTTP status code

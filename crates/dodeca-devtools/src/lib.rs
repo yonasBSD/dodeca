@@ -8,11 +8,11 @@
 use dioxus::prelude::*;
 use wasm_bindgen::prelude::*;
 
+mod components;
 mod protocol;
 mod state;
-mod components;
 
-pub use protocol::{ClientMessage, ErrorInfo, ServerMessage, ScopeValue};
+pub use protocol::{ClientMessage, ErrorInfo, ScopeValue, ServerMessage};
 pub use state::DevtoolsState;
 
 /// Glade base CSS (color variables, etc.)
@@ -28,7 +28,7 @@ pub fn mount_devtools() {
     tracing_wasm::set_as_global_default_with_config(
         tracing_wasm::WASMLayerConfigBuilder::new()
             .set_max_level(tracing::Level::INFO)
-            .build()
+            .build(),
     );
 
     // Create a container element for the devtools
@@ -40,13 +40,14 @@ pub fn mount_devtools() {
     host.set_id("dodeca-devtools");
 
     // Append to body
-    document.body().expect("no body").append_child(&host).expect("append");
+    document
+        .body()
+        .expect("no body")
+        .append_child(&host)
+        .expect("append");
 
     // Launch Dioxus app in the shadow DOM
-    dioxus_web::launch::launch_cfg(
-        App,
-        dioxus_web::Config::new().rootname("dodeca-devtools"),
-    );
+    dioxus_web::launch::launch_cfg(App, dioxus_web::Config::new().rootname("dodeca-devtools"));
 }
 
 /// Main devtools application component

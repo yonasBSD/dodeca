@@ -160,8 +160,7 @@ impl TestSite {
     /// Read a file from the fixture directory
     pub fn read_file(&self, rel_path: &str) -> String {
         let path = self.fixture_dir.join(rel_path);
-        fs::read_to_string(&path)
-            .unwrap_or_else(|e| panic!("read {}: {e}", path.display()))
+        fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()))
     }
 
     /// Write a file to the fixture directory
@@ -170,8 +169,7 @@ impl TestSite {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).ok();
         }
-        fs::write(&path, content)
-            .unwrap_or_else(|e| panic!("write {}: {e}", path.display()));
+        fs::write(&path, content).unwrap_or_else(|e| panic!("write {}: {e}", path.display()));
     }
 
     /// Modify a file in place
@@ -187,8 +185,7 @@ impl TestSite {
     /// Delete a file from the fixture directory
     pub fn delete_file(&self, rel_path: &str) {
         let path = self.fixture_dir.join(rel_path);
-        fs::remove_file(&path)
-            .unwrap_or_else(|e| panic!("delete {}: {e}", path.display()));
+        fs::remove_file(&path).unwrap_or_else(|e| panic!("delete {}: {e}", path.display()));
     }
 
     /// Wait until a condition is true, polling at intervals
@@ -349,11 +346,7 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
 
 /// Truncate a string for display
 fn truncate(s: &str, max_len: usize) -> &str {
-    if s.len() <= max_len {
-        s
-    } else {
-        &s[..max_len]
-    }
+    if s.len() <= max_len { s } else { &s[..max_len] }
 }
 
 /// Result of running `ddc build` on a fixture
@@ -390,7 +383,8 @@ impl BuildResult {
         assert!(
             combined.contains(needle),
             "output should contain '{needle}'.\nstdout:\n{}\nstderr:\n{}",
-            self.stdout, self.stderr
+            self.stdout,
+            self.stderr
         );
         self
     }
@@ -482,8 +476,7 @@ impl InlineSite {
         .expect("write page template");
 
         // Write sass
-        fs::write(fixture_dir.join("sass/main.scss"), "body { margin: 0; }")
-            .expect("write sass");
+        fs::write(fixture_dir.join("sass/main.scss"), "body { margin: 0; }").expect("write sass");
 
         // Write content files
         for (path, content) in content_files {

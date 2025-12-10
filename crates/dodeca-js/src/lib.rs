@@ -8,7 +8,7 @@ use oxc::ast::ast::{StringLiteral, TemplateLiteral};
 use oxc::ast_visit::Visit;
 use oxc::parser::Parser;
 use oxc::span::SourceType;
-use plugcard::{plugcard, PlugResult};
+use plugcard::{PlugResult, plugcard};
 use std::collections::HashMap;
 
 plugcard::export_plugin!();

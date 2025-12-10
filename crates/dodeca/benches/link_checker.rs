@@ -2,8 +2,8 @@
 //!
 //! Run with: cargo bench --bench link_checker
 
-use divan::{black_box, Bencher};
-use dodeca::link_checker::{extract_links, check_internal_links, Page};
+use divan::{Bencher, black_box};
+use dodeca::link_checker::{Page, check_internal_links, extract_links};
 use dodeca::types::Route;
 
 fn main() {

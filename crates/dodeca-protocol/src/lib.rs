@@ -36,10 +36,7 @@ pub enum ServerMessage {
     },
 
     /// Response to an expression evaluation
-    EvalResponse {
-        request_id: u32,
-        result: EvalResult,
-    },
+    EvalResponse { request_id: u32, result: EvalResult },
 }
 
 /// A path to a node in the DOM tree

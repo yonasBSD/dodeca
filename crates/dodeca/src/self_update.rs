@@ -1,6 +1,6 @@
 #![allow(clippy::disallowed_types)] // serde needed for GitHub API deserialization
 
-use color_eyre::{eyre::eyre, Result};
+use color_eyre::{Result, eyre::eyre};
 use owo_colors::OwoColorize;
 use serde::Deserialize;
 use std::env;
@@ -57,14 +57,8 @@ fn is_newer_version(current: &str, latest: &str) -> bool {
     let latest = parse_version(latest);
 
     // Parse as semver-like strings
-    let current_parts: Vec<u32> = current
-        .split('.')
-        .filter_map(|s| s.parse().ok())
-        .collect();
-    let latest_parts: Vec<u32> = latest
-        .split('.')
-        .filter_map(|s| s.parse().ok())
-        .collect();
+    let current_parts: Vec<u32> = current.split('.').filter_map(|s| s.parse().ok()).collect();
+    let latest_parts: Vec<u32> = latest.split('.').filter_map(|s| s.parse().ok()).collect();
 
     // Compare version parts
     for i in 0..std::cmp::max(current_parts.len(), latest_parts.len()) {
@@ -174,7 +168,11 @@ fn replace_binary(new_binary: &Path, current_binary: &Path) -> Result<()> {
         perms.set_mode(0o755);
         fs::set_permissions(current_binary, perms)?;
 
-        println!("  {} Old binary backed up to: {}", "✓".green(), backup.display());
+        println!(
+            "  {} Old binary backed up to: {}",
+            "✓".green(),
+            backup.display()
+        );
     }
 
     #[cfg(windows)]
@@ -184,10 +182,17 @@ fn replace_binary(new_binary: &Path, current_binary: &Path) -> Result<()> {
         let new_path = current_binary.with_extension("exe.new");
         fs::copy(new_binary, &new_path)?;
 
-        println!("  {} New binary saved to: {}", "✓".green(), new_path.display());
+        println!(
+            "  {} New binary saved to: {}",
+            "✓".green(),
+            new_path.display()
+        );
         println!("\n{}", "NOTE:".yellow().bold());
         println!("  Windows cannot replace a running binary.");
-        println!("  The update has been downloaded to: {}", new_path.display());
+        println!(
+            "  The update has been downloaded to: {}",
+            new_path.display()
+        );
         println!("  Please rename it to replace the current binary after exit.");
     }
 
@@ -249,7 +254,10 @@ pub async fn self_update() -> Result<()> {
     let new_binary = temp_dir.join(binary_name);
 
     if !new_binary.exists() {
-        return Err(eyre!("Binary not found in extracted archive: {}", new_binary.display()));
+        return Err(eyre!(
+            "Binary not found in extracted archive: {}",
+            new_binary.display()
+        ));
     }
 
     // Replace the current binary
@@ -270,20 +278,31 @@ pub async fn self_update() -> Result<()> {
 
         // Copy new plugins
         copy_dir_all(&new_plugins, &target_plugins)?;
-        println!("  {} Plugins updated: {}", "✓".green(), target_plugins.display());
+        println!(
+            "  {} Plugins updated: {}",
+            "✓".green(),
+            target_plugins.display()
+        );
     }
 
     // Cleanup
     fs::remove_dir_all(&temp_dir)?;
 
     println!("\n{}", "Update complete!".green().bold());
-    println!("  Updated from {} to {}", current_version.yellow(), latest_version.yellow());
+    println!(
+        "  Updated from {} to {}",
+        current_version.yellow(),
+        latest_version.yellow()
+    );
 
     #[cfg(not(windows))]
     println!("\n{}", "You can now use the updated version.".cyan());
 
     #[cfg(windows)]
-    println!("\n{}", "Please restart ddc to use the updated version.".cyan());
+    println!(
+        "\n{}",
+        "Please restart ddc to use the updated version.".cyan()
+    );
 
     Ok(())
 }

@@ -5,7 +5,7 @@
 use facet::Facet;
 use lightningcss::stylesheet::{ParserOptions, PrinterOptions, StyleSheet};
 use lightningcss::visitor::Visit;
-use plugcard::{plugcard, PlugResult};
+use plugcard::{PlugResult, plugcard};
 use std::collections::HashMap;
 
 plugcard::export_plugin!();

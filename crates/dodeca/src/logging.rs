@@ -11,8 +11,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::mpsc::Sender;
 use std::time::Instant;
-use tracing::{Event, Level, Subscriber};
 use tracing::span::{Attributes, Id};
+use tracing::{Event, Level, Subscriber};
 use tracing_subscriber::{
     Layer,
     filter::EnvFilter,
@@ -72,7 +72,9 @@ where
 {
     fn on_new_span(&self, _attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
         if let Some(span) = ctx.span(id) {
-            span.extensions_mut().insert(SpanTiming { start: Instant::now() });
+            span.extensions_mut().insert(SpanTiming {
+                start: Instant::now(),
+            });
         }
     }
 
@@ -278,13 +280,26 @@ fn detect_event_kind(msg: &str, target: &str) -> EventKind {
         EventKind::Patch
     } else if msg_lower.contains("search") || msg_lower.contains("pagefind") {
         EventKind::Search
-    } else if msg_lower.contains("changed:") || msg_lower.contains("modified") || msg_lower.contains("watching") {
+    } else if msg_lower.contains("changed:")
+        || msg_lower.contains("modified")
+        || msg_lower.contains("watching")
+    {
         EventKind::FileChange
-    } else if msg_lower.contains("server") || msg_lower.contains("listening") || msg_lower.contains("binding")
-        || msg_lower.contains("browser") || msg_lower.contains("connected") || msg_lower.contains("disconnected") {
+    } else if msg_lower.contains("server")
+        || msg_lower.contains("listening")
+        || msg_lower.contains("binding")
+        || msg_lower.contains("browser")
+        || msg_lower.contains("connected")
+        || msg_lower.contains("disconnected")
+    {
         EventKind::Server
-    } else if msg_lower.contains("compil") || msg_lower.contains("build") || msg_lower.contains("render")
-        || msg_lower.contains("slow query") || msg_lower.contains("loaded") || msg_lower.contains("cache") {
+    } else if msg_lower.contains("compil")
+        || msg_lower.contains("build")
+        || msg_lower.contains("render")
+        || msg_lower.contains("slow query")
+        || msg_lower.contains("loaded")
+        || msg_lower.contains("cache")
+    {
         EventKind::Build
     } else {
         EventKind::Generic

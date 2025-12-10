@@ -72,13 +72,21 @@ impl CodeExecutionConfig {
         // Build language config from rust settings
         let mut language_config = HashMap::new();
         let rust_config = LanguageConfig {
-            command: kdl.rust.command.clone().unwrap_or_else(|| "cargo".to_string()),
+            command: kdl
+                .rust
+                .command
+                .clone()
+                .unwrap_or_else(|| "cargo".to_string()),
             args: kdl
                 .rust
                 .args
                 .clone()
                 .unwrap_or_else(|| vec!["run".to_string(), "--release".to_string()]),
-            extension: kdl.rust.extension.clone().unwrap_or_else(|| "rs".to_string()),
+            extension: kdl
+                .rust
+                .extension
+                .clone()
+                .unwrap_or_else(|| "rs".to_string()),
             prepare_code: kdl.rust.prepare_code.unwrap_or(true),
             auto_imports: kdl.rust.auto_imports.clone().unwrap_or_else(|| {
                 vec![

@@ -6,7 +6,10 @@
 
 use std::sync::Arc;
 
-use axum::extract::{State, WebSocketUpgrade, ws::{Message, WebSocket}};
+use axum::extract::{
+    State, WebSocketUpgrade,
+    ws::{Message, WebSocket},
+};
 use axum::response::IntoResponse;
 use futures_util::{SinkExt, StreamExt};
 
@@ -73,7 +76,11 @@ async fn handle_socket(socket: WebSocket, ctx: Arc<PluginContext>) {
         while let Some(chunk) = tunnel_rx.recv().await {
             if !chunk.payload.is_empty() {
                 // Send as binary (the devtools protocol uses binary postcard)
-                if ws_sender.send(Message::Binary(chunk.payload.into())).await.is_err() {
+                if ws_sender
+                    .send(Message::Binary(chunk.payload.into()))
+                    .await
+                    .is_err()
+                {
                     break;
                 }
             }

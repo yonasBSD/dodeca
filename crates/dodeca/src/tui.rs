@@ -190,13 +190,13 @@ impl EventKind {
         match self {
             EventKind::Http { status } => {
                 if *status >= 500 {
-                    "⚠"  // server error
+                    "⚠" // server error
                 } else if *status >= 400 {
-                    "✗"  // client error
+                    "✗" // client error
                 } else if *status >= 300 {
-                    "↪"  // redirect
+                    "↪" // redirect
                 } else {
-                    "→"  // success
+                    "→" // success
                 }
             }
             EventKind::FileChange => "📝",
@@ -266,7 +266,11 @@ impl LogEvent {
     // Convenience constructors for specific event types
     pub fn http(status: u16, message: impl Into<String>) -> Self {
         Self {
-            level: if status >= 400 { LogLevel::Warn } else { LogLevel::Info },
+            level: if status >= 400 {
+                LogLevel::Warn
+            } else {
+                LogLevel::Info
+            },
             kind: EventKind::Http { status },
             message: message.into(),
         }
@@ -485,7 +489,10 @@ fn highlight_message(msg: &str, kind: EventKind) -> Vec<Span<'static>> {
                     } else {
                         theme::FG
                     };
-                    spans.push(Span::styled(status.to_string(), Style::default().fg(status_color)));
+                    spans.push(Span::styled(
+                        status.to_string(),
+                        Style::default().fg(status_color),
+                    ));
                     spans.push(Span::raw(" in ").tn_muted());
                     spans.push(Span::raw(timing.to_string()).tn_timing());
                 } else {
@@ -606,8 +613,10 @@ impl ServeApp {
                             }
                             KeyCode::Char('l') => {
                                 self.log_level = self.filter_handle.cycle_log_level();
-                                self.event_buffer
-                                    .push_back(LogEvent::info(format!("Log level: {}", self.log_level.as_str())));
+                                self.event_buffer.push_back(LogEvent::info(format!(
+                                    "Log level: {}",
+                                    self.log_level.as_str()
+                                )));
                             }
                             _ => {}
                         }
@@ -677,8 +686,12 @@ impl ServeApp {
             Span::raw(" "),
             Span::styled(status.0, Style::default().fg(status.1)),
         ]);
-        let urls_widget = Paragraph::new(url_lines)
-            .block(Block::default().title(server_title).borders(Borders::ALL).border_style(Style::default().fg(theme::FG_GUTTER)));
+        let urls_widget = Paragraph::new(url_lines).block(
+            Block::default()
+                .title(server_title)
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme::FG_GUTTER)),
+        );
         frame.render_widget(urls_widget, chunks[0]);
 
         // Build progress (single-line compact version)
@@ -705,14 +718,21 @@ impl ServeApp {
         if server.salsa_cache_size > 0 || server.cas_cache_size > 0 {
             status_spans.push(Span::raw("  ").tn_fg_dark());
             status_spans.push(Span::raw("💾 ").tn_fg());
-            status_spans.push(Span::raw(format!(
-                "{}+{}",
-                format_size(server.salsa_cache_size),
-                format_size(server.cas_cache_size)
-            )).tn_fg_dark());
+            status_spans.push(
+                Span::raw(format!(
+                    "{}+{}",
+                    format_size(server.salsa_cache_size),
+                    format_size(server.cas_cache_size)
+                ))
+                .tn_fg_dark(),
+            );
         }
-        let progress_widget = Paragraph::new(Line::from(status_spans))
-            .block(Block::default().title(" 🔨 Status ").borders(Borders::ALL).border_style(Style::default().fg(theme::FG_GUTTER)));
+        let progress_widget = Paragraph::new(Line::from(status_spans)).block(
+            Block::default()
+                .title(" 🔨 Status ")
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme::FG_GUTTER)),
+        );
         frame.render_widget(progress_widget, chunks[1]);
 
         // Events log (from local buffer)
@@ -732,15 +752,20 @@ impl ServeApp {
                 };
 
                 // Build spans with highlighted paths, URLs, and timings
-                let mut spans = vec![
-                    Span::styled(format!("{} ", symbol), Style::default().fg(symbol_color)),
-                ];
+                let mut spans = vec![Span::styled(
+                    format!("{} ", symbol),
+                    Style::default().fg(symbol_color),
+                )];
                 spans.extend(highlight_message(&e.message, e.kind));
                 Line::from(spans)
             })
             .collect();
-        let events_widget = Paragraph::new(recent_events)
-            .block(Block::default().title(" 📋 Activity ").borders(Borders::ALL).border_style(Style::default().fg(theme::FG_GUTTER)));
+        let events_widget = Paragraph::new(recent_events).block(
+            Block::default()
+                .title(" 📋 Activity ")
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme::FG_GUTTER)),
+        );
         frame.render_widget(events_widget, chunks[2]);
 
         // Footer

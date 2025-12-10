@@ -214,7 +214,13 @@ fn build_dodeca(release: bool) -> bool {
     );
 
     let mut cmd = Command::new("cargo");
-    cmd.args(["build", "--package", "dodeca", "--package", "dodeca-mod-http"]);
+    cmd.args([
+        "build",
+        "--package",
+        "dodeca",
+        "--package",
+        "dodeca-mod-http",
+    ]);
     if release {
         cmd.arg("--release");
     }

@@ -6,7 +6,7 @@
 use base64::Engine;
 use facet::Facet;
 use image::{DynamicImage, ImageEncoder, Rgb, Rgba};
-use plugcard::{plugcard, PlugResult};
+use plugcard::{PlugResult, plugcard};
 
 plugcard::export_plugin!();
 
@@ -117,10 +117,11 @@ pub fn generate_thumbhash_data_url(pixels: Vec<u8>, width: u32, height: u32) -> 
     };
 
     // Create a tiny PNG from the decoded thumbhash
-    let img_buf: image::RgbaImage = match image::ImageBuffer::from_raw(w as u32, h as u32, rgba_pixels) {
-        Some(buf) => buf,
-        None => return PlugResult::Err("Failed to create image buffer".to_string()),
-    };
+    let img_buf: image::RgbaImage =
+        match image::ImageBuffer::from_raw(w as u32, h as u32, rgba_pixels) {
+            Some(buf) => buf,
+            None => return PlugResult::Err("Failed to create image buffer".to_string()),
+        };
 
     let mut png_bytes = Vec::new();
     let encoder = image::codecs::png::PngEncoder::new(&mut png_bytes);

@@ -39,17 +39,17 @@ mod macos;
 #[cfg(not(any(target_os = "linux", target_os = "macos")))]
 mod unsupported;
 
-pub use config::{SandboxConfig, PathAccess};
+pub use config::{PathAccess, SandboxConfig};
 pub use error::Error;
 
 #[cfg(target_os = "linux")]
-pub use linux::{Sandbox, Command, Output, ExitStatus, Stdio};
+pub use linux::{Command, ExitStatus, Output, Sandbox, Stdio};
 
 #[cfg(target_os = "macos")]
-pub use macos::{Sandbox, Command, Output, ExitStatus, Stdio};
+pub use macos::{Command, ExitStatus, Output, Sandbox, Stdio};
 
 #[cfg(not(any(target_os = "linux", target_os = "macos")))]
-pub use unsupported::{Sandbox, Command, Output, ExitStatus, Stdio};
+pub use unsupported::{Command, ExitStatus, Output, Sandbox, Stdio};
 
 /// Result type for sandbox operations.
 pub type Result<T> = std::result::Result<T, Error>;

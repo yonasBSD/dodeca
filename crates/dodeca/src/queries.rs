@@ -365,9 +365,7 @@ pub fn compile_sass<'db>(db: &'db dyn Db, registry: SassRegistry) -> Option<Comp
     // Skip compilation if no main.scss entry point exists
     if !sass_map.contains_key("main.scss") {
         if !sass_map.is_empty() {
-            tracing::debug!(
-                "SCSS files found but no main.scss entry point, skipping compilation"
-            );
+            tracing::debug!("SCSS files found but no main.scss entry point, skipping compilation");
         }
         return None;
     }
@@ -1399,7 +1397,8 @@ fn render_markdown(markdown: &str) -> (String, Vec<Heading>) {
             Event::End(pulldown_cmark::TagEnd::CodeBlock) => {
                 if in_code_block {
                     // Apply syntax highlighting
-                    let highlighted_html = highlight_code_block(&code_block_content, &code_block_lang);
+                    let highlighted_html =
+                        highlight_code_block(&code_block_content, &code_block_lang);
                     output_events.push(Event::Html(highlighted_html.into()));
                     in_code_block = false;
                     code_block_lang.clear();
@@ -1484,10 +1483,10 @@ fn render_markdown(markdown: &str) -> (String, Vec<Heading>) {
 
 /// Highlight a code block using the syntax highlighting plugin
 fn highlight_code_block(code: &str, language: &str) -> String {
-    use crate::plugins::highlight_code_plugin;
+    use crate::plugins::highlight_code_rapace;
 
     // Try to use the syntax highlighting plugin
-    if let Some(result) = highlight_code_plugin(code, language) {
+    if let Some(result) = highlight_code_rapace(code, language) {
         // Wrap in pre/code tags with language class
         let lang_class = if language.is_empty() {
             String::new()
@@ -1677,25 +1676,23 @@ pub fn execute_all_code_samples(db: &dyn Db, sources: SourceRegistry) -> Vec<Cod
                     // Convert plugin results to our internal format
                     for (sample, result) in execution_results {
                         // Convert metadata if present
-                        let metadata = result.metadata.map(|m| {
-                            CodeExecutionMetadata {
-                                rustc_version: m.rustc_version,
-                                cargo_version: m.cargo_version,
-                                target: m.target,
-                                timestamp: m.timestamp,
-                                cache_hit: m.cache_hit,
-                                platform: m.platform,
-                                arch: m.arch,
-                                dependencies: m
-                                    .dependencies
-                                    .into_iter()
-                                    .map(|d| ResolvedDependencyInfo {
-                                        name: d.name,
-                                        version: d.version,
-                                        source: convert_dependency_source(d.source),
-                                    })
-                                    .collect(),
-                            }
+                        let metadata = result.metadata.map(|m| CodeExecutionMetadata {
+                            rustc_version: m.rustc_version,
+                            cargo_version: m.cargo_version,
+                            target: m.target,
+                            timestamp: m.timestamp,
+                            cache_hit: m.cache_hit,
+                            platform: m.platform,
+                            arch: m.arch,
+                            dependencies: m
+                                .dependencies
+                                .into_iter()
+                                .map(|d| ResolvedDependencyInfo {
+                                    name: d.name,
+                                    version: d.version,
+                                    source: convert_dependency_source(d.source),
+                                })
+                                .collect(),
                         });
 
                         let code_result = CodeExecutionResult {
@@ -1745,7 +1742,9 @@ pub fn execute_all_code_samples(db: &dyn Db, sources: SourceRegistry) -> Vec<Cod
 }
 
 /// Convert plugin DependencySource to db DependencySourceInfo
-fn convert_dependency_source(source: dodeca_code_execution_types::DependencySource) -> DependencySourceInfo {
+fn convert_dependency_source(
+    source: dodeca_code_execution_types::DependencySource,
+) -> DependencySourceInfo {
     use dodeca_code_execution_types::DependencySource;
     match source {
         DependencySource::CratesIo => DependencySourceInfo::CratesIo,

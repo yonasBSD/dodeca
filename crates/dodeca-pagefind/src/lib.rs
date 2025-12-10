@@ -5,7 +5,7 @@
 
 use facet::Facet;
 use pagefind::api::PagefindIndex;
-use plugcard::{plugcard, PlugResult};
+use plugcard::{PlugResult, plugcard};
 use std::sync::OnceLock;
 
 plugcard::export_plugin!();
@@ -58,9 +58,7 @@ pub struct SearchIndexOutput {
 /// Takes a list of pages (url + html) and returns the pagefind output files.
 #[plugcard]
 pub fn build_search_index(input: SearchIndexInput) -> PlugResult<SearchIndexOutput> {
-    runtime().block_on(async {
-        build_search_index_async(input).await
-    })
+    runtime().block_on(async { build_search_index_async(input).await })
 }
 
 async fn build_search_index_async(input: SearchIndexInput) -> PlugResult<SearchIndexOutput> {
@@ -95,7 +93,9 @@ async fn build_search_index_async(input: SearchIndexInput) -> PlugResult<SearchI
         })
         .collect();
 
-    PlugResult::Ok(SearchIndexOutput { files: output_files })
+    PlugResult::Ok(SearchIndexOutput {
+        files: output_files,
+    })
 }
 
 #[cfg(test)]

@@ -133,7 +133,10 @@ fn print_usage() {
         "serve".green()
     );
     eprintln!("    {}      Clear all caches", "clean".green());
-    eprintln!("    {}  Update ddc to the latest version", "self-update".green());
+    eprintln!(
+        "    {}  Update ddc to the latest version",
+        "self-update".green()
+    );
     eprintln!("\n{}", "BUILD OPTIONS:".yellow());
     eprintln!("    [path]           Project directory");
     eprintln!("    -c, --content    Content directory");
@@ -198,9 +201,7 @@ fn parse_args() -> Result<Command> {
             })?;
             Ok(Command::Clean(clean_args))
         }
-        "self-update" => {
-            Ok(Command::SelfUpdate)
-        }
+        "self-update" => Ok(Command::SelfUpdate),
         "--help" | "-h" | "help" => {
             print_usage();
             std::process::exit(0);
@@ -2125,13 +2126,7 @@ async fn serve_plain(
         Ok(std::net::IpAddr::V6(_)) => std::net::Ipv4Addr::LOCALHOST, // Fallback for IPv6
         Err(_) => std::net::Ipv4Addr::LOCALHOST,
     };
-    plugin_server::start_plugin_server(
-        server,
-        plugin_path,
-        vec![bind_ip],
-        actual_port,
-    )
-    .await?;
+    plugin_server::start_plugin_server(server, plugin_path, vec![bind_ip], actual_port).await?;
 
     Ok(())
 }

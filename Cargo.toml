@@ -26,6 +26,8 @@ members = [
     "crates/dodeca-code-execution-types",
     "crates/dodeca-html-diff",
     "crates/dodeca-syntax-highlight",
+    "crates/dodeca-syntax-highlight-protocol",
+    "crates/dodeca-syntax-highlight-rapace",
     "crates/dodeca-sandbox",
     "crates/dodeca-integration",
     "xtask",
@@ -54,7 +56,6 @@ arborium-highlight = { git = "https://github.com/bearcove/arborium" }
 arborium-tree-sitter = { git = "https://github.com/bearcove/arborium" }
 arborium-sysroot = { git = "https://github.com/bearcove/arborium" }
 
-# Use local rapace with hashed method IDs
 [patch."https://github.com/bearcove/rapace"]
 rapace = { path = "../rapace/crates/rapace" }
 rapace-core = { path = "../rapace/crates/rapace-core" }

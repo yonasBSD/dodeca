@@ -2,12 +2,12 @@
 
 use dioxus::prelude::*;
 use glade::components::{
-    button::{Button, ButtonVariant, ButtonSize},
-    icons::{IconChevronRight, IconChevronDown, IconRefreshCw},
+    button::{Button, ButtonSize, ButtonVariant},
+    icons::{IconChevronDown, IconChevronRight, IconRefreshCw},
 };
 
 use crate::protocol::{ClientMessage, ScopeEntry, ScopeValue};
-use crate::state::{send_message, DevtoolsState};
+use crate::state::{DevtoolsState, send_message};
 
 /// Tree view for exploring template scope variables
 #[component]
@@ -99,14 +99,23 @@ fn ScopeEntryRow(entry: ScopeEntry, path: Vec<String>, depth: u32) -> Element {
     let mut expanded = use_signal(|| false);
 
     let indent = depth * 12;
-    let cursor = if entry.expandable { "pointer" } else { "default" };
+    let cursor = if entry.expandable {
+        "pointer"
+    } else {
+        "default"
+    };
     let padding_left = indent + 8;
 
     // Get path key for cache lookup
     let path_key = path.join(".");
 
     // Check if we have cached children for this path
-    let children = state.read().scope_children.get(&path_key).cloned().unwrap_or_default();
+    let children = state
+        .read()
+        .scope_children
+        .get(&path_key)
+        .cloned()
+        .unwrap_or_default();
     let is_loading = expanded() && children.is_empty() && entry.expandable;
 
     // Clone for closures
@@ -228,8 +237,12 @@ fn ScopeValueDisplay(value: ScopeValue) -> Element {
             };
             ("#fbbf24", display)
         }
-        ScopeValue::Array { length, preview } => ("#60a5fa", format!("Array({}) {}", length, preview)),
-        ScopeValue::Object { fields, preview } => ("#f472b6", format!("Object({}) {}", fields, preview)),
+        ScopeValue::Array { length, preview } => {
+            ("#60a5fa", format!("Array({}) {}", length, preview))
+        }
+        ScopeValue::Object { fields, preview } => {
+            ("#f472b6", format!("Object({}) {}", fields, preview))
+        }
     };
 
     rsx! {

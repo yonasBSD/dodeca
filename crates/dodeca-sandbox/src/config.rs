@@ -92,38 +92,44 @@ impl SandboxConfig {
 
     /// Allow read-only access to a path and all its contents.
     pub fn allow_read(mut self, path: impl AsRef<Path>) -> Self {
-        self.paths.push((path.as_ref().to_path_buf(), PathAccess::Read));
+        self.paths
+            .push((path.as_ref().to_path_buf(), PathAccess::Read));
         self
     }
 
     /// Allow read-write access to a path and all its contents.
     pub fn allow_read_write(mut self, path: impl AsRef<Path>) -> Self {
-        self.paths.push((path.as_ref().to_path_buf(), PathAccess::ReadWrite));
+        self.paths
+            .push((path.as_ref().to_path_buf(), PathAccess::ReadWrite));
         self
     }
 
     /// Allow execute access to a path (typically a binary).
     pub fn allow_execute(mut self, path: impl AsRef<Path>) -> Self {
-        self.paths.push((path.as_ref().to_path_buf(), PathAccess::Execute));
+        self.paths
+            .push((path.as_ref().to_path_buf(), PathAccess::Execute));
         self
     }
 
     /// Allow read and execute access to a path.
     pub fn allow_read_execute(mut self, path: impl AsRef<Path>) -> Self {
-        self.paths.push((path.as_ref().to_path_buf(), PathAccess::ReadExecute));
+        self.paths
+            .push((path.as_ref().to_path_buf(), PathAccess::ReadExecute));
         self
     }
 
     /// Allow full access (read, write, execute) to a path.
     pub fn allow_full(mut self, path: impl AsRef<Path>) -> Self {
-        self.paths.push((path.as_ref().to_path_buf(), PathAccess::Full));
+        self.paths
+            .push((path.as_ref().to_path_buf(), PathAccess::Full));
         self
     }
 
     /// Add multiple read-only paths at once.
     pub fn allow_read_many(mut self, paths: impl IntoIterator<Item = impl AsRef<Path>>) -> Self {
         for path in paths {
-            self.paths.push((path.as_ref().to_path_buf(), PathAccess::Read));
+            self.paths
+                .push((path.as_ref().to_path_buf(), PathAccess::Read));
         }
         self
     }

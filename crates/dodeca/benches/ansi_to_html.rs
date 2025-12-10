@@ -2,7 +2,7 @@
 //!
 //! Run with: cargo bench --bench ansi_to_html
 
-use divan::{black_box, Bencher};
+use divan::{Bencher, black_box};
 use dodeca::error_pages::ansi_to_html;
 
 fn main() {

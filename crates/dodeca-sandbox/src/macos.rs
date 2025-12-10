@@ -151,9 +151,8 @@ impl<'a> Command<'a> {
             profile.push_str("(allow file-read* file-write* (subpath \"/tmp\"))\n");
             profile.push_str("(allow file-read* file-write* (subpath \"/private/tmp\"))\n");
             // Also allow var folders for temp files
-            profile.push_str(
-                "(allow file-read* file-write* (regex #\"^/private/var/folders/.*\"))\n",
-            );
+            profile
+                .push_str("(allow file-read* file-write* (regex #\"^/private/var/folders/.*\"))\n");
         }
 
         // Add configured paths
@@ -452,9 +451,6 @@ mod tests {
             .unwrap();
 
         assert!(output.status.success());
-        assert_eq!(
-            String::from_utf8_lossy(&output.stdout).trim(),
-            "test_value"
-        );
+        assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "test_value");
     }
 }

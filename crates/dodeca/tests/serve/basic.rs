@@ -25,7 +25,10 @@ fn nonexistent_static_returns_404() {
     let site = TestSite::new("sample-site");
 
     let resp = site.get("/images/nonexistent.png");
-    assert_eq!(resp.status, 404, "Nonexistent static file should return 404");
+    assert_eq!(
+        resp.status, 404,
+        "Nonexistent static file should return 404"
+    );
 }
 
 #[test_log::test]

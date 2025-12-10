@@ -63,7 +63,9 @@ pub enum ServeContent {
     /// Search index file (pagefind)
     Search { content: Vec<u8>, mime: String },
     /// Not found - includes similar routes for suggestions
-    NotFound { similar_routes: Vec<(String, String)> },
+    NotFound {
+        similar_routes: Vec<(String, String)>,
+    },
 }
 
 /// Content service provided by the host

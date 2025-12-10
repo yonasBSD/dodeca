@@ -3,13 +3,13 @@
 use dioxus::prelude::*;
 use glade::components::{
     badge::Badge,
-    button::{Button, ButtonVariant, ButtonSize},
+    button::{Button, ButtonSize, ButtonVariant},
     empty_state::EmptyState,
     icons::{IconCheck, IconChevronRight, IconFileText},
 };
 
 use crate::protocol::{ClientMessage, ErrorInfo};
-use crate::state::{send_message, DevtoolsState, DevtoolsTab};
+use crate::state::{DevtoolsState, DevtoolsTab, send_message};
 
 /// Panel showing template errors
 #[component]
@@ -208,8 +208,16 @@ fn ErrorCard(error: ErrorInfo) -> Element {
 
 #[component]
 fn SourceLine(number: u32, content: String, is_error: bool) -> Element {
-    let bg = if is_error { "rgba(239, 68, 68, 0.15)" } else { "transparent" };
-    let border = if is_error { "2px solid #ef4444" } else { "2px solid transparent" };
+    let bg = if is_error {
+        "rgba(239, 68, 68, 0.15)"
+    } else {
+        "transparent"
+    };
+    let border = if is_error {
+        "2px solid #ef4444"
+    } else {
+        "2px solid transparent"
+    };
 
     rsx! {
         div {

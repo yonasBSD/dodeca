@@ -3,11 +3,26 @@
 //! Plugins are loaded from dynamic libraries (.so on Linux, .dylib on macOS).
 //! Currently supports image encoding/decoding plugins (WebP, JXL).
 
+use dodeca_syntax_highlight_protocol::{HighlightResult, SyntaxHighlightServiceClient};
 use facet::Facet;
-use plugcard::{host_services, HostCallData, HostCallResult, LoadError, LogLevel, Plugin, PlugResult};
+use plugcard::{
+    HostCallData, HostCallResult, LoadError, LogLevel, PlugResult, Plugin, host_services,
+};
+use rapace_testkit::RpcSession;
+use rapace_transport_shm::{ShmSession, ShmSessionConfig, ShmTransport};
+use std::env;
 use std::path::{Path, PathBuf};
-use std::sync::OnceLock;
+use std::process::Stdio;
+use std::sync::{Arc, OnceLock};
+use tokio::process::Command;
 use tracing::{debug, error, info, trace, warn};
+
+/// SHM configuration used for syntax highlight RPC.
+const SYNTAX_HIGHLIGHT_SHM_CONFIG: ShmSessionConfig = ShmSessionConfig {
+    ring_capacity: 256,
+    slot_size: 65536,
+    slot_count: 128,
+};
 
 /// Log callback that routes plugin logs to tracing
 extern "C" fn plugin_log_callback(level: LogLevel, ptr: *const u8, len: usize) {
@@ -61,15 +76,12 @@ fn handle_highlight_code(data: &mut HostCallData) {
     };
 
     // Call the syntax highlighting plugin
-    let result = match highlight_code_plugin(&request.code, &request.language) {
+    let result = match highlight_code_rapace(&request.code, &request.language) {
         Some(r) => r,
-        None => {
-            // Plugin not available - return unhighlighted HTML-escaped text
-            HighlightResult {
-                html: html_escape(&request.code),
-                highlighted: false,
-            }
-        }
+        None => HighlightResult {
+            html: html_escape(&request.code),
+            highlighted: false,
+        },
     };
 
     // Serialize output
@@ -84,6 +96,8 @@ fn handle_highlight_code(data: &mut HostCallData) {
         }
     }
 }
+
+// Legacy plugcard highlight code handler - removed in favor of rapace
 
 /// Simple HTML escaping for fallback when plugin is unavailable
 fn html_escape(s: &str) -> String {
@@ -141,8 +155,8 @@ pub struct PluginRegistry {
     pub code_execution: Option<Plugin>,
     /// HTML diff plugin for livereload
     pub html_diff: Option<Plugin>,
-    /// Syntax highlighting plugin
-    pub syntax_highlight: Option<Plugin>,
+    /// Syntax highlighting plugin (rapace)
+    pub syntax_highlight: Option<Arc<SyntaxHighlightServiceClient<rapace_transport_shm::ShmTransport>>>,
 }
 
 impl PluginRegistry {
@@ -161,9 +175,96 @@ impl PluginRegistry {
         let linkcheck = Self::try_load_plugin(dir, "dodeca_linkcheck");
         let code_execution = Self::try_load_plugin(dir, "dodeca_code_execution");
         let html_diff = Self::try_load_plugin(dir, "dodeca_html_diff");
-        let syntax_highlight = Self::try_load_plugin(dir, "dodeca_syntax_highlight");
+        let syntax_highlight = Self::try_load_rapace_service(dir, "dodeca-syntax-highlight-rapace");
 
-        PluginRegistry { webp, jxl, minify, svgo, sass, css, js, pagefind, image, fonts, linkcheck, code_execution, html_diff, syntax_highlight }
+        PluginRegistry {
+            webp,
+            jxl,
+            minify,
+            svgo,
+            sass,
+            css,
+            js,
+            pagefind,
+            image,
+            fonts,
+            linkcheck,
+            code_execution,
+            html_diff,
+            syntax_highlight,
+        }
+    }
+
+    /// Try to load a rapace service from the given directory.
+    fn try_load_rapace_service(
+        dir: &Path,
+        name: &str,
+    ) -> Option<Arc<SyntaxHighlightServiceClient<rapace_transport_shm::ShmTransport>>> {
+        #[cfg(target_os = "windows")]
+        let executable = format!("{name}.exe");
+        #[cfg(not(target_os = "windows"))]
+        let executable = name.to_string();
+
+        let path = dir.join(&executable);
+        if !path.exists() {
+            debug!("rapace plugin not found: {}", path.display());
+            return None;
+        }
+
+        let shm_path = env::temp_dir().join(format!(
+            "dodeca-syntax-highlight-{}.shm",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&shm_path);
+
+        let session = match ShmSession::create_file(&shm_path, SYNTAX_HIGHLIGHT_SHM_CONFIG) {
+            Ok(sess) => sess,
+            Err(e) => {
+                warn!("failed to create SHM for syntax highlight plugin: {}", e);
+                return None;
+            }
+        };
+
+        let mut child = match Command::new(&path)
+            .arg(&shm_path)
+            .stdin(Stdio::null())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .spawn()
+        {
+            Ok(child) => child,
+            Err(e) => {
+                warn!("failed to spawn {}: {}", executable, e);
+                let _ = std::fs::remove_file(&shm_path);
+                return None;
+            }
+        };
+
+        let transport = Arc::new(ShmTransport::new(session));
+        let rpc_session = Arc::new(RpcSession::with_channel_start(transport, 1));
+        let client =
+            Arc::new(SyntaxHighlightServiceClient::new(rpc_session.clone()));
+
+        {
+            let session_runner = rpc_session.clone();
+            tokio::spawn(async move {
+                if let Err(e) = session_runner.run().await {
+                    warn!("syntax highlight RPC session error: {}", e);
+                }
+            });
+        }
+
+        let shm_cleanup = shm_path.clone();
+        tokio::spawn(async move {
+            if let Err(e) = child.wait().await {
+                warn!("syntax highlight plugin exited with error: {}", e);
+            }
+            let _ = std::fs::remove_file(&shm_cleanup);
+        });
+
+        info!("launched syntax highlight plugin from {}", path.display());
+
+        Some(client)
     }
 
     /// Check if any plugins were loaded
@@ -237,9 +338,7 @@ pub fn plugins() -> &'static PluginRegistry {
         // 4. In target/debug (for development)
         // 5. In target/release
 
-        let env_plugin_path = std::env::var("DODECA_PLUGIN_PATH")
-            .ok()
-            .map(PathBuf::from);
+        let env_plugin_path = std::env::var("DODECA_PLUGIN_PATH").ok().map(PathBuf::from);
 
         let exe_dir = std::env::current_exe()
             .ok()
@@ -512,10 +611,7 @@ pub fn rewrite_string_literals_in_js_plugin(
     js: &str,
     path_map: &std::collections::HashMap<String, String>,
 ) -> Result<String, String> {
-    let plugin = plugins()
-        .js
-        .as_ref()
-        .expect("dodeca-js plugin not loaded");
+    let plugin = plugins().js.as_ref().expect("dodeca-js plugin not loaded");
 
     let input = JsRewriteInput {
         js: js.to_string(),
@@ -568,7 +664,9 @@ pub fn build_search_index_plugin(pages: Vec<SearchPage>) -> Result<Vec<SearchFil
 
     let input = SearchIndexInput { pages };
 
-    match plugin.call::<SearchIndexInput, PlugResult<SearchIndexOutput>>("build_search_index", &input) {
+    match plugin
+        .call::<SearchIndexInput, PlugResult<SearchIndexOutput>>("build_search_index", &input)
+    {
         Ok(PlugResult::Ok(output)) => Ok(output.files),
         Ok(PlugResult::Err(e)) => Err(e),
         Err(e) => Err(format!("plugin call failed: {}", e)),
@@ -588,7 +686,9 @@ pub fn decode_png_plugin(data: &[u8]) -> Option<DecodedImage> {
         data: Vec<u8>,
     }
 
-    let input = Input { data: data.to_vec() };
+    let input = Input {
+        data: data.to_vec(),
+    };
 
     match plugin.call::<Input, PlugResult<DecodedImage>>("decode_png", &input) {
         Ok(PlugResult::Ok(decoded)) => Some(decoded),
@@ -612,7 +712,9 @@ pub fn decode_jpeg_plugin(data: &[u8]) -> Option<DecodedImage> {
         data: Vec<u8>,
     }
 
-    let input = Input { data: data.to_vec() };
+    let input = Input {
+        data: data.to_vec(),
+    };
 
     match plugin.call::<Input, PlugResult<DecodedImage>>("decode_jpeg", &input) {
         Ok(PlugResult::Ok(decoded)) => Some(decoded),
@@ -636,7 +738,9 @@ pub fn decode_gif_plugin(data: &[u8]) -> Option<DecodedImage> {
         data: Vec<u8>,
     }
 
-    let input = Input { data: data.to_vec() };
+    let input = Input {
+        data: data.to_vec(),
+    };
 
     match plugin.call::<Input, PlugResult<DecodedImage>>("decode_gif", &input) {
         Ok(PlugResult::Ok(decoded)) => Some(decoded),
@@ -797,7 +901,9 @@ pub fn decompress_font_plugin(data: &[u8]) -> Option<Vec<u8>> {
         data: Vec<u8>,
     }
 
-    let input = Input { data: data.to_vec() };
+    let input = Input {
+        data: data.to_vec(),
+    };
 
     match plugin.call::<Input, PlugResult<Vec<u8>>>("decompress_font", &input) {
         Ok(PlugResult::Ok(decompressed)) => Some(decompressed),
@@ -849,7 +955,9 @@ pub fn compress_to_woff2_plugin(data: &[u8]) -> Option<Vec<u8>> {
         data: Vec<u8>,
     }
 
-    let input = Input { data: data.to_vec() };
+    let input = Input {
+        data: data.to_vec(),
+    };
 
     match plugin.call::<Input, PlugResult<Vec<u8>>>("compress_to_woff2", &input) {
         Ok(PlugResult::Ok(woff2)) => Some(woff2),
@@ -948,7 +1056,10 @@ pub fn has_linkcheck_plugin() -> bool {
 /// Extract code samples from markdown using plugin.
 ///
 /// Returns None if plugin is not loaded.
-pub fn extract_code_samples_plugin(content: &str, source_path: &str) -> Option<Vec<dodeca_code_execution_types::CodeSample>> {
+pub fn extract_code_samples_plugin(
+    content: &str,
+    source_path: &str,
+) -> Option<Vec<dodeca_code_execution_types::CodeSample>> {
     let plugin = plugins().code_execution.as_ref()?;
 
     #[derive(Facet)]
@@ -962,7 +1073,10 @@ pub fn extract_code_samples_plugin(content: &str, source_path: &str) -> Option<V
         content: content.to_string(),
     };
 
-    match plugin.call::<Input, PlugResult<dodeca_code_execution_types::ExtractSamplesOutput>>("extract_code_samples", &input) {
+    match plugin.call::<Input, PlugResult<dodeca_code_execution_types::ExtractSamplesOutput>>(
+        "extract_code_samples",
+        &input,
+    ) {
         Ok(PlugResult::Ok(output)) => Some(output.samples),
         Ok(PlugResult::Err(e)) => {
             warn!("code execution plugin error: {}", e);
@@ -981,7 +1095,12 @@ pub fn extract_code_samples_plugin(content: &str, source_path: &str) -> Option<V
 pub fn execute_code_samples_plugin(
     samples: Vec<dodeca_code_execution_types::CodeSample>,
     config: dodeca_code_execution_types::CodeExecutionConfig,
-) -> Option<Vec<(dodeca_code_execution_types::CodeSample, dodeca_code_execution_types::ExecutionResult)>> {
+) -> Option<
+    Vec<(
+        dodeca_code_execution_types::CodeSample,
+        dodeca_code_execution_types::ExecutionResult,
+    )>,
+> {
     let plugin = plugins().code_execution.as_ref()?;
 
     #[derive(Facet)]
@@ -1052,45 +1171,32 @@ pub fn diff_html_plugin(old_html: &str, new_html: &str) -> Option<HtmlDiffResult
 // Syntax highlighting plugin functions
 // ============================================================================
 
-/// Result of syntax highlighting
-#[derive(Facet, Debug, Clone)]
-pub struct HighlightResult {
-    /// The highlighted HTML (with <span> tags for tokens)
-    pub html: String,
-    /// Whether highlighting was successful (vs fallback to plain text)
-    pub highlighted: bool,
-}
-
-/// Highlight source code using the syntax highlighting plugin.
+/// Highlight source code using the rapace syntax highlight service.
 ///
-/// Returns the code with syntax highlighting applied as HTML.
-/// If the plugin is not loaded or the language is not supported,
-/// returns None.
-pub fn highlight_code_plugin(code: &str, language: &str) -> Option<HighlightResult> {
-    let plugin = plugins().syntax_highlight.as_ref()?;
+/// Returns the code with syntax highlighting applied as HTML, or None if no service is available.
+pub fn highlight_code_rapace(code: &str, language: &str) -> Option<HighlightResult> {
+    // Get the syntax highlight service client
+    let client = syntax_highlight_client()?;
 
-    #[derive(Facet)]
-    struct Input {
-        code: String,
-        language: String,
-    }
-
-    let input = Input {
-        code: code.to_string(),
-        language: language.to_string(),
-    };
-
-    match plugin.call::<Input, PlugResult<HighlightResult>>("highlight_code", &input) {
-        Ok(PlugResult::Ok(result)) => Some(result),
-        Ok(PlugResult::Err(e)) => {
-            warn!("syntax highlight plugin error: {}", e);
-            None
-        }
+    // Call the service
+    match tokio::runtime::Runtime::new()
+        .unwrap()
+        .block_on(client.highlight_code(code.to_string(), language.to_string()))
+    {
+        Ok(result) => Some(result),
         Err(e) => {
-            warn!("syntax highlight plugin call failed: {}", e);
+            warn!("syntax highlight service call failed: {}", e);
             None
         }
     }
 }
 
+/// Get the syntax highlight service client, if available
+fn syntax_highlight_client() -> Option<Arc<SyntaxHighlightServiceClient<rapace_transport_shm::ShmTransport>>> {
+    plugins().syntax_highlight.clone()
+}
 
+/// Initialize the rapace syntax highlight service
+pub fn init_syntax_highlight_service() {
+    let _ = syntax_highlight_client();
+}

@@ -325,10 +325,7 @@ mod tests {
             add_width_suffix("images/photo.png", 640),
             "images/photo-640w.png"
         );
-        assert_eq!(
-            add_width_suffix("photo.jpg", 1280),
-            "photo-1280w.jpg"
-        );
+        assert_eq!(add_width_suffix("photo.jpg", 1280), "photo-1280w.jpg");
         assert_eq!(add_width_suffix("no_ext", 320), "no_ext-320w");
     }
 

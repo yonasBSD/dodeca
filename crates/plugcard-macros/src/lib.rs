@@ -100,7 +100,9 @@ pub fn plugcard(_attr: TokenStream, item: TokenStream) -> TokenStream {
     }
 }
 
-fn plugcard_impl(item: proc_macro2::TokenStream) -> std::result::Result<proc_macro2::TokenStream, String> {
+fn plugcard_impl(
+    item: proc_macro2::TokenStream,
+) -> std::result::Result<proc_macro2::TokenStream, String> {
     // Parse the function
     let mut iter = item.clone().to_token_iter();
     let func: Cons<Function, EndOfStream> = iter
@@ -120,11 +122,8 @@ fn plugcard_impl(item: proc_macro2::TokenStream) -> std::result::Result<proc_mac
             let arg = &d.value;
             let name = &arg.name;
             // Collect type tokens
-            let ty_tokens: proc_macro2::TokenStream = arg
-                .ty
-                .iter()
-                .map(|t| t.value.second.clone())
-                .collect();
+            let ty_tokens: proc_macro2::TokenStream =
+                arg.ty.iter().map(|t| t.value.second.clone()).collect();
             (name.clone(), ty_tokens)
         })
         .collect();

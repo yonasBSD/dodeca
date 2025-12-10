@@ -1,6 +1,8 @@
 //! Host-side plugin loading via libloading.
 
-use crate::{HostCallback, LogCallback, MethodCallData, MethodCallResult, MethodSignature, ABI_VERSION};
+use crate::{
+    ABI_VERSION, HostCallback, LogCallback, MethodCallData, MethodCallResult, MethodSignature,
+};
 use facet::Facet;
 use libloading::{Library, Symbol};
 use std::path::Path;

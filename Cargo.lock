@@ -2431,6 +2431,7 @@ dependencies = [
  "dodeca-code-execution-types",
  "dodeca-protocol",
  "dodeca-serve-protocol",
+ "dodeca-syntax-highlight-protocol",
  "facet",
  "facet-args",
  "facet-json",
@@ -2730,6 +2731,36 @@ dependencies = [
  "facet",
  "linkme",
  "plugcard",
+]
+
+[[package]]
+name = "dodeca-syntax-highlight-protocol"
+version = "0.1.0"
+dependencies = [
+ "facet",
+ "facet-core",
+ "facet-postcard",
+ "rapace",
+ "rapace-core",
+ "rapace-registry",
+ "rapace-testkit",
+ "tracing",
+]
+
+[[package]]
+name = "dodeca-syntax-highlight-rapace"
+version = "0.1.0"
+dependencies = [
+ "arborium",
+ "color-eyre",
+ "dodeca-syntax-highlight-protocol",
+ "rapace",
+ "rapace-testkit",
+ "rapace-tracing",
+ "rapace-transport-shm",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

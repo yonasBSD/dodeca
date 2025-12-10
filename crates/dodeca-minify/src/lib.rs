@@ -1,6 +1,6 @@
 //! HTML minification plugin for dodeca
 
-use plugcard::{plugcard, PlugResult};
+use plugcard::{PlugResult, plugcard};
 
 plugcard::export_plugin!();
 

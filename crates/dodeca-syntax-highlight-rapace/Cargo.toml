@@ -1,0 +1,61 @@
+[package]
+name = "dodeca-syntax-highlight-rapace"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Syntax highlighting plugin for dodeca using rapace"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[[bin]]
+name = "dodeca-syntax-highlight-rapace"
+path = "src/main.rs"
+
+[dependencies]
+# RPC framework
+rapace = { git = "https://github.com/bearcove/rapace" }
+rapace-testkit = { git = "https://github.com/bearcove/rapace" }
+rapace-transport-shm = { git = "https://github.com/bearcove/rapace" }
+rapace-tracing = { git = "https://github.com/bearcove/rapace" }
+
+# Syntax highlighting with tree-sitter
+arborium = { version = "0.700", features = [
+    "lang-bash",
+    "lang-c",
+    "lang-cpp",
+    "lang-css",
+    "lang-dockerfile",
+    "lang-go",
+    "lang-haskell",
+    "lang-html",
+    "lang-java",
+    "lang-javascript",
+    "lang-json",
+    "lang-kdl",
+    "lang-kotlin",
+    "lang-lua",
+    "lang-markdown",
+    "lang-python",
+    "lang-ruby",
+    "lang-rust",
+    "lang-scala",
+    "lang-sql",
+    "lang-swift",
+    "lang-toml",
+    "lang-typescript",
+    "lang-yaml",
+    "lang-zig",
+] }
+
+# Protocol definition
+dodeca-syntax-highlight-protocol = { path = "../dodeca-syntax-highlight-protocol" }
+
+# Error handling
+color-eyre = "0.6"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = "0.3"

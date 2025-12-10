@@ -10,10 +10,9 @@ use crate::harness::InlineSite;
 /// Test that a correct code sample executes successfully and shows output
 #[test_log::test]
 fn test_successful_code_sample_shows_output() {
-    let site = InlineSite::new(&[
-        (
-            "_index.md",
-            r#"+++
+    let site = InlineSite::new(&[(
+        "_index.md",
+        r#"+++
 title = "Home"
 +++
 
@@ -25,8 +24,7 @@ fn main() {
 }
 ```
 "#,
-        ),
-    ]);
+    )]);
 
     let result = site.build();
 
@@ -40,10 +38,9 @@ fn main() {
 /// Test that a correct code sample with ANSI colors in output works
 #[test_log::test]
 fn test_successful_code_sample_with_ansi_colors() {
-    let site = InlineSite::new(&[
-        (
-            "_index.md",
-            r#"+++
+    let site = InlineSite::new(&[(
+        "_index.md",
+        r#"+++
 title = "Home"
 +++
 
@@ -58,8 +55,7 @@ fn main() {
 }
 ```
 "#,
-        ),
-    ]);
+    )]);
 
     let result = site.build();
     result.assert_success();
@@ -68,10 +64,9 @@ fn main() {
 /// Test that a failing code sample causes the build to fail and shows compiler errors
 #[test_log::test]
 fn test_failing_code_sample_shows_compiler_error() {
-    let site = InlineSite::new(&[
-        (
-            "_index.md",
-            r#"+++
+    let site = InlineSite::new(&[(
+        "_index.md",
+        r#"+++
 title = "Home"
 +++
 
@@ -84,8 +79,7 @@ fn main() {
 }
 ```
 "#,
-        ),
-    ]);
+    )]);
 
     let result = site.build();
 
@@ -103,10 +97,9 @@ fn main() {
 /// Test that compiler errors preserve ANSI colors from rustc
 #[test_log::test]
 fn test_compiler_error_with_ansi_colors() {
-    let site = InlineSite::new(&[
-        (
-            "_index.md",
-            r#"+++
+    let site = InlineSite::new(&[(
+        "_index.md",
+        r#"+++
 title = "Home"
 +++
 
@@ -119,8 +112,7 @@ fn main() {
 }
 ```
 "#,
-        ),
-    ]);
+    )]);
 
     let result = site.build();
     result.assert_failure();
@@ -134,10 +126,9 @@ fn main() {
 /// Test that an incorrect code sample that's expected to pass causes build failure
 #[test_log::test]
 fn test_incorrect_sample_expected_to_pass_fails_build() {
-    let site = InlineSite::new(&[
-        (
-            "_index.md",
-            r#"+++
+    let site = InlineSite::new(&[(
+        "_index.md",
+        r#"+++
 title = "Home"
 +++
 
@@ -154,8 +145,7 @@ fn main() {
 }
 ```
 "#,
-        ),
-    ]);
+    )]);
 
     let result = site.build();
 
@@ -169,10 +159,9 @@ fn main() {
 /// Test that multiple code samples are all executed
 #[test_log::test]
 fn test_multiple_code_samples_executed() {
-    let site = InlineSite::new(&[
-        (
-            "_index.md",
-            r#"+++
+    let site = InlineSite::new(&[(
+        "_index.md",
+        r#"+++
 title = "Home"
 +++
 
@@ -194,8 +183,7 @@ fn main() {
 }
 ```
 "#,
-        ),
-    ]);
+    )]);
 
     let result = site.build();
     result.assert_success();
@@ -208,10 +196,9 @@ fn main() {
 /// Test that non-rust code blocks are not executed
 #[test_log::test]
 fn test_non_rust_code_blocks_not_executed() {
-    let site = InlineSite::new(&[
-        (
-            "_index.md",
-            r#"+++
+    let site = InlineSite::new(&[(
+        "_index.md",
+        r#"+++
 title = "Home"
 +++
 
@@ -235,8 +222,7 @@ This has no language specified:
 Some random text
 ```
 "#,
-        ),
-    ]);
+    )]);
 
     let result = site.build();
 
@@ -247,10 +233,9 @@ Some random text
 /// Test that runtime panics are caught and reported
 #[test_log::test]
 fn test_runtime_panic_reported() {
-    let site = InlineSite::new(&[
-        (
-            "_index.md",
-            r#"+++
+    let site = InlineSite::new(&[(
+        "_index.md",
+        r#"+++
 title = "Home"
 +++
 
@@ -262,8 +247,7 @@ fn main() {
 }
 ```
 "#,
-        ),
-    ]);
+    )]);
 
     let result = site.build();
 

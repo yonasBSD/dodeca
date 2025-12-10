@@ -12,7 +12,9 @@ pub use dodeca_protocol::{NodePath, Patch};
 /// Returns the number of patches applied, or an error message
 pub fn apply_patches(patches: Vec<Patch>) -> Result<usize, JsValue> {
     let window = web_sys::window().ok_or_else(|| JsValue::from_str("no window"))?;
-    let document = window.document().ok_or_else(|| JsValue::from_str("no document"))?;
+    let document = window
+        .document()
+        .ok_or_else(|| JsValue::from_str("no document"))?;
 
     let count = patches.len();
     for patch in patches {

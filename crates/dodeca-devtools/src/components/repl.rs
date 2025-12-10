@@ -7,7 +7,7 @@ use glade::components::{
 };
 
 use crate::protocol::{ClientMessage, ScopeValue};
-use crate::state::{send_message, DevtoolsState, ReplEntry};
+use crate::state::{DevtoolsState, ReplEntry, send_message};
 
 /// Interactive REPL for evaluating template expressions
 #[component]
@@ -206,8 +206,12 @@ fn ReplValueDisplay(value: ScopeValue) -> Element {
             };
             ("#fbbf24", display)
         }
-        ScopeValue::Array { length, preview } => ("#60a5fa", format!("Array({}) {}", length, preview)),
-        ScopeValue::Object { fields, preview } => ("#f472b6", format!("Object({}) {}", fields, preview)),
+        ScopeValue::Array { length, preview } => {
+            ("#60a5fa", format!("Array({}) {}", length, preview))
+        }
+        ScopeValue::Object { fields, preview } => {
+            ("#f472b6", format!("Object({}) {}", fields, preview))
+        }
     };
 
     rsx! {

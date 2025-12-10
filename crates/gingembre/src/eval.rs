@@ -272,7 +272,8 @@ impl<'a> Evaluator<'a> {
             Literal::String(s) => Value::from(s.value.as_str()),
             Literal::List(l) => {
                 // List elements are resolved to concrete values
-                let elements: Result<Vec<_>> = l.elements.iter().map(|e| self.eval_concrete(e)).collect();
+                let elements: Result<Vec<_>> =
+                    l.elements.iter().map(|e| self.eval_concrete(e)).collect();
                 VArray::from_iter(elements?).into()
             }
             Literal::Dict(d) => {
@@ -328,7 +329,8 @@ impl<'a> Evaluator<'a> {
                         context: "index".to_string(),
                         span: index.index.span(),
                         src: self.source.named_source(),
-                    }.into())
+                    }
+                    .into()),
                 }
             }
             LazyValue::Concrete(base_val) => {
@@ -353,8 +355,11 @@ impl<'a> Evaluator<'a> {
                             .into()
                         })
                     }
-                    (DestructuredRef::Object(obj), DestructuredRef::String(key)) => {
-                        obj.get(key.as_str()).cloned().map(LazyValue::concrete).ok_or_else(|| {
+                    (DestructuredRef::Object(obj), DestructuredRef::String(key)) => obj
+                        .get(key.as_str())
+                        .cloned()
+                        .map(LazyValue::concrete)
+                        .ok_or_else(|| {
                             UnknownFieldError {
                                 base_type: "dict".to_string(),
                                 field: key.to_string(),
@@ -363,12 +368,15 @@ impl<'a> Evaluator<'a> {
                                 src: self.source.named_source(),
                             }
                             .into()
-                        })
-                    }
+                        }),
                     (DestructuredRef::String(s), DestructuredRef::Number(n)) => {
                         let i = n.to_i64().unwrap_or(0);
                         let len = s.len();
-                        let i = if i < 0 { (len as i64 + i) as usize } else { i as usize };
+                        let i = if i < 0 {
+                            (len as i64 + i) as usize
+                        } else {
+                            i as usize
+                        };
                         s.as_str()
                             .chars()
                             .nth(i)
@@ -476,9 +484,9 @@ impl<'a> Evaluator<'a> {
             ),
             BinaryOp::In => Value::from(value_in(&left, &right)),
             BinaryOp::NotIn => Value::from(!value_in(&left, &right)),
-            BinaryOp::Concat => {
-                Value::from(format!("{}{}", left.render_to_string(), right.render_to_string()).as_str())
-            }
+            BinaryOp::Concat => Value::from(
+                format!("{}{}", left.render_to_string(), right.render_to_string()).as_str(),
+            ),
             BinaryOp::And | BinaryOp::Or => unreachable!(), // Handled above
         }))
     }
@@ -489,26 +497,22 @@ impl<'a> Evaluator<'a> {
 
         Ok(LazyValue::concrete(match unary.op {
             UnaryOp::Not => Value::from(!value.is_truthy()),
-            UnaryOp::Neg => {
-                match value.destructure_ref() {
-                    DestructuredRef::Number(n) => {
-                        if let Some(i) = n.to_i64() {
-                            Value::from(-i)
-                        } else if let Some(f) = n.to_f64() {
-                            Value::from(-f)
-                        } else {
-                            Value::NULL
-                        }
+            UnaryOp::Neg => match value.destructure_ref() {
+                DestructuredRef::Number(n) => {
+                    if let Some(i) = n.to_i64() {
+                        Value::from(-i)
+                    } else if let Some(f) = n.to_f64() {
+                        Value::from(-f)
+                    } else {
+                        Value::NULL
                     }
-                    _ => Value::NULL,
                 }
-            }
-            UnaryOp::Pos => {
-                match value.destructure_ref() {
-                    DestructuredRef::Number(_) => value,
-                    _ => Value::NULL,
-                }
-            }
+                _ => Value::NULL,
+            },
+            UnaryOp::Pos => match value.destructure_ref() {
+                DestructuredRef::Number(_) => value,
+                _ => Value::NULL,
+            },
         }))
     }
 
@@ -558,7 +562,9 @@ impl<'a> Evaluator<'a> {
         let result = match test.test_name.name.as_str() {
             // String tests
             "starting_with" | "startswith" => {
-                if let (DestructuredRef::String(s), Some(prefix)) = (value.destructure_ref(), args.first()) {
+                if let (DestructuredRef::String(s), Some(prefix)) =
+                    (value.destructure_ref(), args.first())
+                {
                     if let DestructuredRef::String(p) = prefix.destructure_ref() {
                         s.as_str().starts_with(p.as_str())
                     } else {
@@ -569,7 +575,9 @@ impl<'a> Evaluator<'a> {
                 }
             }
             "ending_with" | "endswith" => {
-                if let (DestructuredRef::String(s), Some(suffix)) = (value.destructure_ref(), args.first()) {
+                if let (DestructuredRef::String(s), Some(suffix)) =
+                    (value.destructure_ref(), args.first())
+                {
                     if let DestructuredRef::String(p) = suffix.destructure_ref() {
                         s.as_str().ends_with(p.as_str())
                     } else {
@@ -579,27 +587,24 @@ impl<'a> Evaluator<'a> {
                     false
                 }
             }
-            "containing" | "contains" => {
-                match value.destructure_ref() {
-                    DestructuredRef::String(s) => {
-                        if let Some(needle) = args.first() {
-                            if let DestructuredRef::String(n) = needle.destructure_ref() {
-                                s.as_str().contains(n.as_str())
-                            } else {
-                                false
-                            }
+            "containing" | "contains" => match value.destructure_ref() {
+                DestructuredRef::String(s) => {
+                    if let Some(needle) = args.first() {
+                        if let DestructuredRef::String(n) = needle.destructure_ref() {
+                            s.as_str().contains(n.as_str())
                         } else {
                             false
                         }
+                    } else {
+                        false
                     }
-                    DestructuredRef::Array(arr) => {
-                        args.first()
-                            .map(|needle| arr.iter().any(|item| values_equal(item, needle)))
-                            .unwrap_or(false)
-                    }
-                    _ => false,
                 }
-            }
+                DestructuredRef::Array(arr) => args
+                    .first()
+                    .map(|needle| arr.iter().any(|item| values_equal(item, needle)))
+                    .unwrap_or(false),
+                _ => false,
+            },
             // Type tests
             "defined" => !value.is_null(),
             "undefined" => value.is_null(),
@@ -622,8 +627,12 @@ impl<'a> Evaluator<'a> {
             }
             "mapping" | "dict" => value.is_object(),
             "iterable" | "sequence" => {
-                matches!(value.destructure_ref(),
-                    DestructuredRef::Array(_) | DestructuredRef::String(_) | DestructuredRef::Object(_))
+                matches!(
+                    value.destructure_ref(),
+                    DestructuredRef::Array(_)
+                        | DestructuredRef::String(_)
+                        | DestructuredRef::Object(_)
+                )
             }
             // Value tests
             "odd" => {
@@ -659,14 +668,18 @@ impl<'a> Evaluator<'a> {
                 .unwrap_or(false),
             "lt" | "lessthan" => {
                 if let Some(other) = args.first() {
-                    compare_values(&value, other).map(|o| o.is_lt()).unwrap_or(false)
+                    compare_values(&value, other)
+                        .map(|o| o.is_lt())
+                        .unwrap_or(false)
                 } else {
                     false
                 }
             }
             "gt" | "greaterthan" => {
                 if let Some(other) = args.first() {
-                    compare_values(&value, other).map(|o| o.is_gt()).unwrap_or(false)
+                    compare_values(&value, other)
+                        .map(|o| o.is_gt())
+                        .unwrap_or(false)
                 } else {
                     false
                 }
@@ -680,7 +693,11 @@ impl<'a> Evaluator<'a> {
             }
         };
 
-        Ok(LazyValue::concrete(Value::from(if test.negated { !result } else { result })))
+        Ok(LazyValue::concrete(Value::from(if test.negated {
+            !result
+        } else {
+            result
+        })))
     }
 }
 
@@ -735,8 +752,8 @@ fn binary_mul(left: &Value, right: &Value) -> Value {
                 Value::NULL
             }
         }
-        (DestructuredRef::String(s), DestructuredRef::Number(n)) |
-        (DestructuredRef::Number(n), DestructuredRef::String(s)) => {
+        (DestructuredRef::String(s), DestructuredRef::Number(n))
+        | (DestructuredRef::Number(n), DestructuredRef::String(s)) => {
             if let Some(count) = n.to_i64() {
                 Value::from(s.as_str().repeat(count as usize).as_str())
             } else {
@@ -1030,7 +1047,9 @@ fn apply_filter(
             _ => Value::from(0i64),
         },
         "first" => match value.destructure_ref() {
-            DestructuredRef::Array(arr) if !arr.is_empty() => arr.get(0).cloned().unwrap_or(Value::NULL),
+            DestructuredRef::Array(arr) if !arr.is_empty() => {
+                arr.get(0).cloned().unwrap_or(Value::NULL)
+            }
             DestructuredRef::String(s) => s
                 .as_str()
                 .chars()
@@ -1129,11 +1148,7 @@ fn apply_filter(
             if value.is_null() {
                 default_val
             } else if let DestructuredRef::String(s) = value.destructure_ref() {
-                if s.is_empty() {
-                    default_val
-                } else {
-                    value
-                }
+                if s.is_empty() { default_val } else { value }
             } else {
                 value
             }
@@ -1167,12 +1182,18 @@ fn apply_filter(
                 DestructuredRef::Array(arr) => {
                     let start = get_kwarg("start")
                         .and_then(|v| v.as_number().and_then(|n| n.to_i64()))
-                        .or_else(|| args.first().and_then(|v| v.as_number().and_then(|n| n.to_i64())))
+                        .or_else(|| {
+                            args.first()
+                                .and_then(|v| v.as_number().and_then(|n| n.to_i64()))
+                        })
                         .unwrap_or(0)
                         .max(0) as usize;
                     let end = get_kwarg("end")
                         .and_then(|v| v.as_number().and_then(|n| n.to_i64()))
-                        .or_else(|| args.get(1).and_then(|v| v.as_number().and_then(|n| n.to_i64())))
+                        .or_else(|| {
+                            args.get(1)
+                                .and_then(|v| v.as_number().and_then(|n| n.to_i64()))
+                        })
                         .map(|e| e.max(0) as usize)
                         .unwrap_or(arr.len());
                     let end = end.min(arr.len());

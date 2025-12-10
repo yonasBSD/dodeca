@@ -382,9 +382,6 @@ mod tests {
             .unwrap();
 
         assert!(output.status.success());
-        assert_eq!(
-            String::from_utf8_lossy(&output.stdout).trim(),
-            "test_value"
-        );
+        assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "test_value");
     }
 }

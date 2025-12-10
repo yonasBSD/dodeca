@@ -4,7 +4,7 @@
 //! This moves the `fontcull` crate out of the main binary.
 
 use facet::Facet;
-use plugcard::{plugcard, PlugResult};
+use plugcard::{PlugResult, plugcard};
 use std::collections::{HashMap, HashSet};
 
 plugcard::export_plugin!();

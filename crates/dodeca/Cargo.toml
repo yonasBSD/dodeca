@@ -91,6 +91,9 @@ dodeca-protocol = { path = "../dodeca-protocol" }
 # RPC protocol for dev server plugin
 dodeca-serve-protocol = { path = "../dodeca-serve-protocol" }
 
+# Syntax highlight service protocol
+dodeca-syntax-highlight-protocol = { path = "../dodeca-syntax-highlight-protocol" }
+
 # RPC framework for plugin communication
 rapace = { git = "https://github.com/bearcove/rapace", features = ["stream"] }
 rapace-testkit = { git = "https://github.com/bearcove/rapace" }

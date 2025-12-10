@@ -1,12 +1,14 @@
 //! Devtools state management and WebSocket connection
 
+use dioxus::prelude::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use dioxus::prelude::*;
 use wasm_bindgen::prelude::*;
 use web_sys::{MessageEvent, WebSocket};
 
-use crate::protocol::{ClientMessage, ErrorInfo, ScopeValue, ServerMessage, ScopeEntry, facet_postcard};
+use crate::protocol::{
+    ClientMessage, ErrorInfo, ScopeEntry, ScopeValue, ServerMessage, facet_postcard,
+};
 
 /// A single REPL entry with expression and result
 #[derive(Debug, Clone, PartialEq)]
@@ -300,7 +302,10 @@ fn handle_server_message(mut state: Signal<DevtoolsState>, msg: ServerMessage) {
                 Err(e) => {
                     // Don't reload on patch failure - the devtools modifies the DOM
                     // which can cause patch paths to be invalid. User can refresh manually.
-                    tracing::warn!("[devtools] patch failed (manual refresh may be needed): {:?}", e);
+                    tracing::warn!(
+                        "[devtools] patch failed (manual refresh may be needed): {:?}",
+                        e
+                    );
                 }
             }
         }
@@ -313,7 +318,8 @@ fn handle_server_message(mut state: Signal<DevtoolsState>, msg: ServerMessage) {
                 let path_key = path.join(".");
                 tracing::info!(
                     "[devtools] scope children response for {}: {} entries",
-                    path_key, scope.len()
+                    path_key,
+                    scope.len()
                 );
                 s.scope_children.insert(path_key, scope);
             } else {
@@ -334,7 +340,11 @@ fn handle_server_message(mut state: Signal<DevtoolsState>, msg: ServerMessage) {
             // Find the pending entry and update it with the result
             if let Some(expr) = s.pending_evals.remove(&request_id) {
                 // Find the entry in history and update it
-                if let Some(entry) = s.repl_history.iter_mut().find(|e| e.expression == expr && e.result.is_none()) {
+                if let Some(entry) = s
+                    .repl_history
+                    .iter_mut()
+                    .find(|e| e.expression == expr && e.result.is_none())
+                {
                     // Convert EvalResult to Result<ScopeValue, String>
                     entry.result = Some(result.clone().into());
                 }

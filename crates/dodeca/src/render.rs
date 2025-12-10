@@ -1,12 +1,15 @@
-use crate::db::{CodeExecutionMetadata, CodeExecutionResult, DependencySourceInfo, Heading, Page, Section, SiteTree};
+use crate::db::{
+    CodeExecutionMetadata, CodeExecutionResult, DependencySourceInfo, Heading, Page, Section,
+    SiteTree,
+};
 use crate::error_pages::render_error_page;
 use crate::template::{
-    Context, DataResolver, Engine, InMemoryLoader, TemplateLoader, VArray, VObject, VString,
-    Value, ValueExt,
+    Context, DataResolver, Engine, InMemoryLoader, TemplateLoader, VArray, VObject, VString, Value,
+    ValueExt,
 };
 use crate::types::Route;
 use crate::url_rewrite::mark_dead_links;
-use lol_html::{element, text, rewrite_str, RewriteStrSettings};
+use lol_html::{RewriteStrSettings, element, rewrite_str, text};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -340,7 +343,9 @@ fn normalize_code_for_matching(code: &str) -> String {
 }
 
 /// Build a map from normalized code text to metadata for code blocks with execution results
-fn build_code_metadata_map(results: &[CodeExecutionResult]) -> HashMap<String, &CodeExecutionMetadata> {
+fn build_code_metadata_map(
+    results: &[CodeExecutionResult],
+) -> HashMap<String, &CodeExecutionMetadata> {
     let mut map = HashMap::new();
     for result in results {
         if let Some(ref metadata) = result.metadata {
@@ -353,25 +358,37 @@ fn build_code_metadata_map(results: &[CodeExecutionResult]) -> HashMap<String, &
 
 /// Convert metadata to JSON for embedding in onclick handler
 fn metadata_to_json(meta: &CodeExecutionMetadata) -> String {
-    let rustc_short = meta.rustc_version.lines().next().unwrap_or(&meta.rustc_version);
+    let rustc_short = meta
+        .rustc_version
+        .lines()
+        .next()
+        .unwrap_or(&meta.rustc_version);
 
-    let deps_json: Vec<String> = meta.dependencies.iter().map(|d| {
-        let source_json = match &d.source {
-            DependencySourceInfo::CratesIo => r#"{"type":"crates.io"}"#.to_string(),
-            DependencySourceInfo::Git { url, commit } => {
-                format!(r#"{{"type":"git","url":"{}","commit":"{}"}}"#,
-                    escape_json(url),
-                    escape_json(commit))
-            }
-            DependencySourceInfo::Path { path } => {
-                format!(r#"{{"type":"path","path":"{}"}}"#, escape_json(path))
-            }
-        };
-        format!(r#"{{"name":"{}","version":"{}","source":{}}}"#,
-            escape_json(&d.name),
-            escape_json(&d.version),
-            source_json)
-    }).collect();
+    let deps_json: Vec<String> = meta
+        .dependencies
+        .iter()
+        .map(|d| {
+            let source_json = match &d.source {
+                DependencySourceInfo::CratesIo => r#"{"type":"crates.io"}"#.to_string(),
+                DependencySourceInfo::Git { url, commit } => {
+                    format!(
+                        r#"{{"type":"git","url":"{}","commit":"{}"}}"#,
+                        escape_json(url),
+                        escape_json(commit)
+                    )
+                }
+                DependencySourceInfo::Path { path } => {
+                    format!(r#"{{"type":"path","path":"{}"}}"#, escape_json(path))
+                }
+            };
+            format!(
+                r#"{{"name":"{}","version":"{}","source":{}}}"#,
+                escape_json(&d.name),
+                escape_json(&d.version),
+                source_json
+            )
+        })
+        .collect();
 
     format!(
         r#"{{"rustc":"{}","cargo":"{}","target":"{}","timestamp":"{}","cacheHit":{},"platform":"{}","arch":"{}","deps":[{}]}}"#,
@@ -431,7 +448,11 @@ fn inject_build_info_buttons(
                             if let Some(meta) = metadata_map_ref.get(&normalized) {
                                 *had_buttons_ref.borrow_mut() = true;
                                 let json = metadata_to_json(meta);
-                                let rustc_short = meta.rustc_version.lines().next().unwrap_or(&meta.rustc_version);
+                                let rustc_short = meta
+                                    .rustc_version
+                                    .lines()
+                                    .next()
+                                    .unwrap_or(&meta.rustc_version);
 
                                 // Inject button HTML before the closing </pre> tag
                                 // Note: JSON must be HTML-escaped since it's inside a double-quoted attribute
@@ -479,7 +500,11 @@ fn escape_html_attr(s: &str) -> String {
 
 /// Inject livereload script, copy buttons, and optionally mark dead links
 #[allow(dead_code)]
-pub fn inject_livereload(html: &str, options: RenderOptions, known_routes: Option<&HashSet<String>>) -> String {
+pub fn inject_livereload(
+    html: &str,
+    options: RenderOptions,
+    known_routes: Option<&HashSet<String>>,
+) -> String {
     inject_livereload_with_build_info(html, options, known_routes, &[])
 }
 
@@ -535,7 +560,8 @@ pub fn inject_livereload_with_build_info(
         // - CSS hot reload
         // - Error overlay with source context
         // - Scope explorer and REPL (future)
-        let devtools_script = format!(r##"<script type="module">
+        let devtools_script = format!(
+            r##"<script type="module">
 (async function() {{
     try {{
         const {{ default: init, mount_devtools }} = await import('{js_url}');
@@ -546,7 +572,8 @@ pub fn inject_livereload_with_build_info(
         console.error('[dodeca] failed to load devtools:', e);
     }}
 }})();
-</script>"##);
+</script>"##
+        );
         // Inject styles and script after <html> - always present even after minification
         result.replacen("<html", &format!("{styles}{devtools_script}<html"), 1)
     } else {
@@ -794,7 +821,10 @@ fn build_render_context_base(site_tree: &SiteTree) -> Context {
         })
         .unwrap_or_else(|| ("Untitled".to_string(), String::new()));
     config_map.insert(VString::from("title"), Value::from(site_title.as_str()));
-    config_map.insert(VString::from("description"), Value::from(site_description.as_str()));
+    config_map.insert(
+        VString::from("description"),
+        Value::from(site_description.as_str()),
+    );
     config_map.insert(VString::from("base_url"), Value::from("/"));
     ctx.set("config", Value::from(config_map));
 
@@ -840,10 +870,7 @@ fn build_render_context_base(site_tree: &SiteTree) -> Context {
 
             if let Some(section) = sections.get(&route) {
                 let mut section_map = VObject::new();
-                section_map.insert(
-                    VString::from("title"),
-                    Value::from(section.title.as_str()),
-                );
+                section_map.insert(VString::from("title"), Value::from(section.title.as_str()));
                 section_map.insert(
                     VString::from("permalink"),
                     Value::from(section.route.as_str()),
@@ -860,14 +887,8 @@ fn build_render_context_base(site_tree: &SiteTree) -> Context {
                     .filter(|p| p.section_route == section.route)
                     .map(|p| {
                         let mut page_map = VObject::new();
-                        page_map.insert(
-                            VString::from("title"),
-                            Value::from(p.title.as_str()),
-                        );
-                        page_map.insert(
-                            VString::from("permalink"),
-                            Value::from(p.route.as_str()),
-                        );
+                        page_map.insert(VString::from("title"), Value::from(p.title.as_str()));
+                        page_map.insert(VString::from("permalink"), Value::from(p.route.as_str()));
                         page_map.insert(
                             VString::from("path"),
                             Value::from(route_to_path(p.route.as_str()).as_str()),
@@ -911,7 +932,10 @@ fn heading_to_value(h: &Heading, children: Vec<Value>) -> Value {
     map.insert(VString::from("title"), Value::from(h.title.as_str()));
     map.insert(VString::from("id"), Value::from(h.id.as_str()));
     map.insert(VString::from("level"), Value::from(h.level as i64));
-    map.insert(VString::from("permalink"), Value::from(format!("#{}", h.id).as_str()));
+    map.insert(
+        VString::from("permalink"),
+        Value::from(format!("#{}", h.id).as_str()),
+    );
     map.insert(VString::from("children"), VArray::from_iter(children));
     map.into()
 }
@@ -980,10 +1004,7 @@ fn build_ancestors(section_route: &Route, site_tree: &SiteTree) -> Vec<Value> {
             // Skip the content root ("/") - it's not useful in breadcrumbs
             if section.route.as_str() != "/" {
                 let mut ancestor_map = VObject::new();
-                ancestor_map.insert(
-                    VString::from("title"),
-                    Value::from(section.title.as_str()),
-                );
+                ancestor_map.insert(VString::from("title"), Value::from(section.title.as_str()));
                 ancestor_map.insert(
                     VString::from("permalink"),
                     Value::from(section.route.as_str()),
@@ -1012,7 +1033,10 @@ fn build_ancestors(section_route: &Route, site_tree: &SiteTree) -> Vec<Value> {
 pub fn page_to_value(page: &Page, site_tree: &SiteTree) -> Value {
     let mut map = VObject::new();
     map.insert(VString::from("title"), Value::from(page.title.as_str()));
-    map.insert(VString::from("content"), Value::from(page.body_html.as_str()));
+    map.insert(
+        VString::from("content"),
+        Value::from(page.body_html.as_str()),
+    );
     map.insert(VString::from("permalink"), Value::from(page.route.as_str()));
     map.insert(
         VString::from("path"),
@@ -1024,7 +1048,10 @@ pub fn page_to_value(page: &Page, site_tree: &SiteTree) -> Value {
         VString::from("ancestors"),
         VArray::from_iter(build_ancestors(&page.section_route, site_tree)),
     );
-    map.insert(VString::from("last_updated"), Value::from(page.last_updated));
+    map.insert(
+        VString::from("last_updated"),
+        Value::from(page.last_updated),
+    );
     map.insert(VString::from("extra"), page.extra.clone());
     map.into()
 }
@@ -1033,14 +1060,23 @@ pub fn page_to_value(page: &Page, site_tree: &SiteTree) -> Value {
 pub fn section_to_value(section: &Section, site_tree: &SiteTree) -> Value {
     let mut map = VObject::new();
     map.insert(VString::from("title"), Value::from(section.title.as_str()));
-    map.insert(VString::from("content"), Value::from(section.body_html.as_str()));
-    map.insert(VString::from("permalink"), Value::from(section.route.as_str()));
+    map.insert(
+        VString::from("content"),
+        Value::from(section.body_html.as_str()),
+    );
+    map.insert(
+        VString::from("permalink"),
+        Value::from(section.route.as_str()),
+    );
     map.insert(
         VString::from("path"),
         Value::from(route_to_path(section.route.as_str()).as_str()),
     );
     map.insert(VString::from("weight"), Value::from(section.weight as i64));
-    map.insert(VString::from("last_updated"), Value::from(section.last_updated));
+    map.insert(
+        VString::from("last_updated"),
+        Value::from(section.last_updated),
+    );
 
     // Add pages in this section (sorted by weight, including their headings)
     let mut pages: Vec<&Page> = site_tree
@@ -1098,7 +1134,10 @@ pub fn section_to_value(section: &Section, site_tree: &SiteTree) -> Value {
 fn subsection_to_value(section: &Section, site_tree: &SiteTree) -> Value {
     let mut map = VObject::new();
     map.insert(VString::from("title"), Value::from(section.title.as_str()));
-    map.insert(VString::from("permalink"), Value::from(section.route.as_str()));
+    map.insert(
+        VString::from("permalink"),
+        Value::from(section.route.as_str()),
+    );
     map.insert(VString::from("weight"), Value::from(section.weight as i64));
     map.insert(VString::from("extra"), section.extra.clone());
 
@@ -1163,9 +1202,14 @@ fn route_to_path(route: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{CodeExecutionMetadata, CodeExecutionResult, DependencySourceInfo, ResolvedDependencyInfo};
+    use crate::db::{
+        CodeExecutionMetadata, CodeExecutionResult, DependencySourceInfo, ResolvedDependencyInfo,
+    };
 
-    fn make_test_result(code: &str, metadata: Option<CodeExecutionMetadata>) -> CodeExecutionResult {
+    fn make_test_result(
+        code: &str,
+        metadata: Option<CodeExecutionMetadata>,
+    ) -> CodeExecutionResult {
         CodeExecutionResult {
             source_path: "test.md".to_string(),
             line: 1,
@@ -1193,13 +1237,11 @@ mod tests {
             cache_hit: false,
             platform: "linux".to_string(),
             arch: "x86_64".to_string(),
-            dependencies: vec![
-                ResolvedDependencyInfo {
-                    name: "serde".to_string(),
-                    version: "1.0.0".to_string(),
-                    source: DependencySourceInfo::CratesIo,
-                },
-            ],
+            dependencies: vec![ResolvedDependencyInfo {
+                name: "serde".to_string(),
+                version: "1.0.0".to_string(),
+                source: DependencySourceInfo::CratesIo,
+            }],
         };
 
         let results = vec![make_test_result("fn main() {}", Some(metadata))];
@@ -1208,9 +1250,18 @@ mod tests {
         let (result, had_buttons) = inject_build_info_buttons(html, &code_metadata);
 
         assert!(had_buttons, "Should have injected buttons");
-        assert!(result.contains(r#"class="build-info-btn verified""#), "Should contain button");
-        assert!(result.contains("showBuildInfoPopup"), "Should have onclick handler");
-        assert!(result.contains("rustc 1.83.0-nightly"), "Should contain rustc version in title");
+        assert!(
+            result.contains(r#"class="build-info-btn verified""#),
+            "Should contain button"
+        );
+        assert!(
+            result.contains("showBuildInfoPopup"),
+            "Should have onclick handler"
+        );
+        assert!(
+            result.contains("rustc 1.83.0-nightly"),
+            "Should contain rustc version in title"
+        );
     }
 
     #[test]
@@ -1235,7 +1286,10 @@ mod tests {
         let (result, had_buttons) = inject_build_info_buttons(html, &code_metadata);
 
         assert!(!had_buttons, "Should not have injected buttons");
-        assert!(!result.contains("build-info-btn"), "Should not contain button");
+        assert!(
+            !result.contains("build-info-btn"),
+            "Should not contain button"
+        );
     }
 
     #[test]
@@ -1245,7 +1299,10 @@ mod tests {
         let code_metadata: HashMap<String, &CodeExecutionMetadata> = HashMap::new();
         let (result, had_buttons) = inject_build_info_buttons(html, &code_metadata);
 
-        assert!(!had_buttons, "Should not have injected buttons with empty metadata");
+        assert!(
+            !had_buttons,
+            "Should not have injected buttons with empty metadata"
+        );
         assert_eq!(result, html, "HTML should be unchanged");
     }
 }

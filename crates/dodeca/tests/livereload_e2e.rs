@@ -2,7 +2,7 @@
 //!
 //! Tests that patches serialize/deserialize correctly with facet-postcard.
 
-use dodeca_protocol::{facet_postcard, NodePath, Patch, ServerMessage};
+use dodeca_protocol::{NodePath, Patch, ServerMessage, facet_postcard};
 
 /// Serialization compatibility tests (no browser needed)
 #[test]
@@ -37,14 +37,38 @@ fn test_patch_serialization_compatibility() {
 #[test]
 fn test_all_patch_types_serialize() {
     let patches = vec![
-        Patch::Replace { path: NodePath(vec![0]), html: "<p>New</p>".into() },
-        Patch::InsertBefore { path: NodePath(vec![1]), html: "<span>Before</span>".into() },
-        Patch::InsertAfter { path: NodePath(vec![2]), html: "<span>After</span>".into() },
-        Patch::AppendChild { path: NodePath(vec![3]), html: "<div>Child</div>".into() },
-        Patch::Remove { path: NodePath(vec![4]) },
-        Patch::SetText { path: NodePath(vec![5]), text: "Text".into() },
-        Patch::SetAttribute { path: NodePath(vec![6]), name: "id".into(), value: "test".into() },
-        Patch::RemoveAttribute { path: NodePath(vec![7]), name: "class".into() },
+        Patch::Replace {
+            path: NodePath(vec![0]),
+            html: "<p>New</p>".into(),
+        },
+        Patch::InsertBefore {
+            path: NodePath(vec![1]),
+            html: "<span>Before</span>".into(),
+        },
+        Patch::InsertAfter {
+            path: NodePath(vec![2]),
+            html: "<span>After</span>".into(),
+        },
+        Patch::AppendChild {
+            path: NodePath(vec![3]),
+            html: "<div>Child</div>".into(),
+        },
+        Patch::Remove {
+            path: NodePath(vec![4]),
+        },
+        Patch::SetText {
+            path: NodePath(vec![5]),
+            text: "Text".into(),
+        },
+        Patch::SetAttribute {
+            path: NodePath(vec![6]),
+            name: "id".into(),
+            value: "test".into(),
+        },
+        Patch::RemoveAttribute {
+            path: NodePath(vec![7]),
+            name: "class".into(),
+        },
     ];
 
     let msg = ServerMessage::Patches(patches.clone());

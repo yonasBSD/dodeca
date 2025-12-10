@@ -12,13 +12,13 @@ use std::sync::{Mutex, RwLock};
 use tokio::sync::broadcast;
 
 use crate::db::{
-    Database, DataFile, DataRegistry, SassFile, SassRegistry, SourceFile, SourceRegistry,
+    DataFile, DataRegistry, Database, SassFile, SassRegistry, SourceFile, SourceRegistry,
     StaticFile, StaticRegistry, TemplateFile, TemplateRegistry,
 };
-use crate::queries::{css_output, serve_html, static_file_output, process_image, build_tree};
+use crate::image::{InputFormat, OutputFormat, add_width_suffix};
+use crate::queries::{build_tree, css_output, process_image, serve_html, static_file_output};
 use crate::render::{RenderOptions, inject_livereload_with_build_info};
 use crate::types::Route;
-use crate::image::{InputFormat, OutputFormat, add_width_suffix};
 use std::collections::HashSet;
 
 use dodeca_protocol::{ScopeEntry, ScopeValue};
@@ -75,7 +75,10 @@ fn value_to_scope_value(value: &facet_value::Value) -> ScopeValue {
                 let items: Vec<String> = arr.iter().take(3).map(value_preview).collect();
                 format!("[{}, ...]", items.join(", "))
             };
-            ScopeValue::Array { length: len, preview }
+            ScopeValue::Array {
+                length: len,
+                preview,
+            }
         }
         DestructuredRef::Object(obj) => {
             let fields = obj.len();
@@ -139,25 +142,23 @@ fn value_to_scope_entries(value: &facet_value::Value, path: &[String]) -> Vec<Sc
     };
 
     match target.destructure_ref() {
-        DestructuredRef::Object(obj) => {
-            obj.iter()
-                .map(|(key, val)| ScopeEntry {
-                    name: key.to_string(),
-                    value: value_to_scope_value(val),
-                    expandable: value_is_expandable(val),
-                })
-                .collect()
-        }
-        DestructuredRef::Array(arr) => {
-            arr.iter()
-                .enumerate()
-                .map(|(idx, val)| ScopeEntry {
-                    name: idx.to_string(),
-                    value: value_to_scope_value(val),
-                    expandable: value_is_expandable(val),
-                })
-                .collect()
-        }
+        DestructuredRef::Object(obj) => obj
+            .iter()
+            .map(|(key, val)| ScopeEntry {
+                name: key.to_string(),
+                value: value_to_scope_value(val),
+                expandable: value_is_expandable(val),
+            })
+            .collect(),
+        DestructuredRef::Array(arr) => arr
+            .iter()
+            .enumerate()
+            .map(|(idx, val)| ScopeEntry {
+                name: idx.to_string(),
+                value: value_to_scope_value(val),
+                expandable: value_is_expandable(val),
+            })
+            .collect(),
         _ => {
             // Scalar value at path - return as single entry
             vec![ScopeEntry {
@@ -191,7 +192,10 @@ pub enum LiveReloadMsg {
     /// Full page reload (fallback)
     Reload,
     /// Patches for a specific route
-    Patches { route: String, patches: Vec<dodeca_protocol::Patch> },
+    Patches {
+        route: String,
+        patches: Vec<dodeca_protocol::Patch>,
+    },
     /// CSS update (new cache-busted path)
     CssUpdate { path: String },
     /// Template error occurred
@@ -417,9 +421,9 @@ impl SiteServer {
 
             if let Some(ref path) = new_css_path {
                 tracing::info!("CSS changed: {}", path);
-                let _ = self.livereload_tx.send(LiveReloadMsg::CssUpdate {
-                    path: path.clone(),
-                });
+                let _ = self
+                    .livereload_tx
+                    .send(LiveReloadMsg::CssUpdate { path: path.clone() });
             }
         }
 
@@ -436,7 +440,10 @@ impl SiteServer {
             return;
         }
 
-        tracing::debug!("trigger_reload: checking {} cached routes", cached_routes.len());
+        tracing::debug!(
+            "trigger_reload: checking {} cached routes",
+            cached_routes.len()
+        );
 
         for route in cached_routes {
             // Get old HTML from cache
@@ -470,7 +477,10 @@ impl SiteServer {
                 let new_has_error = new.contains(crate::render::RENDER_ERROR_MARKER);
                 tracing::debug!(
                     "trigger_reload: {} - old_has_error={}, new_has_error={}, html_changed={}",
-                    route, old_has_error, new_has_error, old != new
+                    route,
+                    old_has_error,
+                    new_has_error,
+                    old != new
                 );
 
                 if old != new {
@@ -478,10 +488,7 @@ impl SiteServer {
                     // The error has already been sent to devtools via LiveReloadMsg::Error
                     // and we want to keep the old working HTML in cache
                     if new_has_error {
-                        tracing::info!(
-                            "🔴 {} - template error detected in trigger_reload",
-                            route
-                        );
+                        tracing::info!("🔴 {} - template error detected in trigger_reload", route);
                         continue;
                     }
 
@@ -510,7 +517,9 @@ impl SiteServer {
 
                                 tracing::info!(
                                     "{} - patching: {} ({} patches)",
-                                    route, summary, patch_count
+                                    route,
+                                    summary,
+                                    patch_count
                                 );
                                 let _ = self.livereload_tx.send(LiveReloadMsg::Patches {
                                     route: route.clone(),
@@ -648,7 +657,9 @@ impl SiteServer {
         // Get known routes for dead link detection (only in dev mode)
         let known_routes: Option<HashSet<String>> = if self.render_options.livereload {
             let site_tree = build_tree(&db, self.source_registry);
-            let routes: HashSet<String> = site_tree.sections.keys()
+            let routes: HashSet<String> = site_tree
+                .sections
+                .keys()
                 .chain(site_tree.pages.keys())
                 .map(|r| r.as_str().to_string())
                 .collect();
@@ -692,10 +703,13 @@ impl SiteServer {
                     line: None,     // TODO: extract from error message
                     column: None,
                     source_snippet: None,
-                    snapshot_id: format!("error-{}", std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_millis()),
+                    snapshot_id: format!(
+                        "error-{}",
+                        std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_millis()
+                    ),
                     available_variables: vec![],
                 };
 
@@ -734,12 +748,24 @@ impl SiteServer {
             }
 
             let code_results = self.code_execution_results.read().unwrap();
-            let html = inject_livereload_with_build_info(&html, self.render_options, known_routes.as_ref(), &code_results);
+            let html = inject_livereload_with_build_info(
+                &html,
+                self.render_options,
+                known_routes.as_ref(),
+                &code_results,
+            );
             return Some(ServeContent::Html(html));
         }
 
         // 2. Try to serve CSS (check if path matches cache-busted CSS path)
-        if let Some(css) = css_output(&db, self.source_registry, self.template_registry, self.sass_registry, self.static_registry, self.data_registry) {
+        if let Some(css) = css_output(
+            &db,
+            self.source_registry,
+            self.template_registry,
+            self.sass_registry,
+            self.static_registry,
+            self.data_registry,
+        ) {
             let css_url = format!("/{}", css.cache_busted_path);
             if path == css_url {
                 return Some(ServeContent::Css(css.content));
@@ -753,16 +779,21 @@ impl SiteServer {
             // Check if this is a processable image
             if InputFormat::is_processable(original_path) {
                 use crate::cas::ImageVariantKey;
-                use crate::queries::{image_metadata, image_input_hash};
+                use crate::queries::{image_input_hash, image_metadata};
 
                 // Get metadata and input hash (fast - no encoding)
-                let Some(metadata) = image_metadata(&db, *file) else { continue };
+                let Some(metadata) = image_metadata(&db, *file) else {
+                    continue;
+                };
                 let input_hash = image_input_hash(&db, *file);
 
                 // Check each possible variant URL
                 for &width in &metadata.variant_widths {
                     // Check JXL variant
-                    let jxl_base = crate::image::change_extension(original_path, OutputFormat::Jxl.extension());
+                    let jxl_base = crate::image::change_extension(
+                        original_path,
+                        OutputFormat::Jxl.extension(),
+                    );
                     let jxl_variant_path = if width == metadata.width {
                         jxl_base.clone()
                     } else {
@@ -773,21 +804,30 @@ impl SiteServer {
                         format: OutputFormat::Jxl,
                         width,
                     };
-                    let jxl_cache_busted = format!("{}.{}.jxl",
+                    let jxl_cache_busted = format!(
+                        "{}.{}.jxl",
                         jxl_variant_path.trim_end_matches(".jxl"),
                         jxl_key.url_hash()
                     );
                     if path == format!("/{jxl_cache_busted}") {
                         // NOW process the image (lazy!)
                         if let Some(processed) = process_image(&db, *file) {
-                            if let Some(variant) = processed.jxl_variants.iter().find(|v| v.width == width) {
-                                return Some(ServeContent::Static(variant.data.clone(), "image/jxl"));
+                            if let Some(variant) =
+                                processed.jxl_variants.iter().find(|v| v.width == width)
+                            {
+                                return Some(ServeContent::Static(
+                                    variant.data.clone(),
+                                    "image/jxl",
+                                ));
                             }
                         }
                     }
 
                     // Check WebP variant
-                    let webp_base = crate::image::change_extension(original_path, OutputFormat::WebP.extension());
+                    let webp_base = crate::image::change_extension(
+                        original_path,
+                        OutputFormat::WebP.extension(),
+                    );
                     let webp_variant_path = if width == metadata.width {
                         webp_base.clone()
                     } else {
@@ -798,22 +838,36 @@ impl SiteServer {
                         format: OutputFormat::WebP,
                         width,
                     };
-                    let webp_cache_busted = format!("{}.{}.webp",
+                    let webp_cache_busted = format!(
+                        "{}.{}.webp",
                         webp_variant_path.trim_end_matches(".webp"),
                         webp_key.url_hash()
                     );
                     if path == format!("/{webp_cache_busted}") {
                         // NOW process the image (lazy!)
                         if let Some(processed) = process_image(&db, *file) {
-                            if let Some(variant) = processed.webp_variants.iter().find(|v| v.width == width) {
-                                return Some(ServeContent::Static(variant.data.clone(), "image/webp"));
+                            if let Some(variant) =
+                                processed.webp_variants.iter().find(|v| v.width == width)
+                            {
+                                return Some(ServeContent::Static(
+                                    variant.data.clone(),
+                                    "image/webp",
+                                ));
                             }
                         }
                     }
                 }
             } else {
                 // Non-image static file
-                let output = static_file_output(&db, *file, self.source_registry, self.template_registry, self.sass_registry, self.static_registry, self.data_registry);
+                let output = static_file_output(
+                    &db,
+                    *file,
+                    self.source_registry,
+                    self.template_registry,
+                    self.sass_registry,
+                    self.static_registry,
+                    self.data_registry,
+                );
                 let static_url = format!("/{}", output.cache_busted_path);
                 if path == static_url {
                     let mime = mime_from_extension(path);
@@ -854,7 +908,11 @@ impl SiteServer {
             "/".to_string()
         } else {
             let trimmed = route_path.trim_end_matches('/');
-            if trimmed.is_empty() { "/".to_string() } else { trimmed.to_string() }
+            if trimmed.is_empty() {
+                "/".to_string()
+            } else {
+                trimmed.to_string()
+            }
         };
         let route = Route::new(route_str);
 
@@ -866,64 +924,131 @@ impl SiteServer {
         let (site_title, site_description) = site_tree
             .sections
             .get(&Route::root())
-            .map(|root| (root.title.to_string(), root.description.clone().unwrap_or_default()))
+            .map(|root| {
+                (
+                    root.title.to_string(),
+                    root.description.clone().unwrap_or_default(),
+                )
+            })
             .unwrap_or_else(|| ("Untitled".to_string(), String::new()));
-        config_map.insert(VString::from("title"), facet_value::Value::from(site_title.as_str()));
-        config_map.insert(VString::from("description"), facet_value::Value::from(site_description.as_str()));
+        config_map.insert(
+            VString::from("title"),
+            facet_value::Value::from(site_title.as_str()),
+        );
+        config_map.insert(
+            VString::from("description"),
+            facet_value::Value::from(site_description.as_str()),
+        );
         config_map.insert(VString::from("base_url"), facet_value::Value::from("/"));
-        scope.insert(VString::from("config"), facet_value::Value::from(config_map));
+        scope.insert(
+            VString::from("config"),
+            facet_value::Value::from(config_map),
+        );
 
         // Add current_path
-        scope.insert(VString::from("current_path"), facet_value::Value::from(route.as_str()));
+        scope.insert(
+            VString::from("current_path"),
+            facet_value::Value::from(route.as_str()),
+        );
 
         // Check if it's a section or page
         if let Some(section) = site_tree.sections.get(&route) {
             // Add section data
             let mut section_map = VObject::new();
-            section_map.insert(VString::from("title"), facet_value::Value::from(section.title.as_str()));
-            section_map.insert(VString::from("permalink"), facet_value::Value::from(section.route.as_str()));
-            section_map.insert(VString::from("weight"), facet_value::Value::from(section.weight as i64));
+            section_map.insert(
+                VString::from("title"),
+                facet_value::Value::from(section.title.as_str()),
+            );
+            section_map.insert(
+                VString::from("permalink"),
+                facet_value::Value::from(section.route.as_str()),
+            );
+            section_map.insert(
+                VString::from("weight"),
+                facet_value::Value::from(section.weight as i64),
+            );
             if let Some(ref desc) = section.description {
-                section_map.insert(VString::from("description"), facet_value::Value::from(desc.as_str()));
+                section_map.insert(
+                    VString::from("description"),
+                    facet_value::Value::from(desc.as_str()),
+                );
             }
             section_map.insert(VString::from("extra"), section.extra.clone());
 
             // Count pages in this section
-            let page_count = site_tree.pages.values()
+            let page_count = site_tree
+                .pages
+                .values()
                 .filter(|p| p.section_route == section.route)
                 .count();
-            section_map.insert(VString::from("pages_count"), facet_value::Value::from(page_count as i64));
+            section_map.insert(
+                VString::from("pages_count"),
+                facet_value::Value::from(page_count as i64),
+            );
 
-            scope.insert(VString::from("section"), facet_value::Value::from(section_map));
+            scope.insert(
+                VString::from("section"),
+                facet_value::Value::from(section_map),
+            );
         } else if let Some(page) = site_tree.pages.get(&route) {
             // Add page data
             let mut page_map = VObject::new();
-            page_map.insert(VString::from("title"), facet_value::Value::from(page.title.as_str()));
-            page_map.insert(VString::from("permalink"), facet_value::Value::from(page.route.as_str()));
-            page_map.insert(VString::from("weight"), facet_value::Value::from(page.weight as i64));
+            page_map.insert(
+                VString::from("title"),
+                facet_value::Value::from(page.title.as_str()),
+            );
+            page_map.insert(
+                VString::from("permalink"),
+                facet_value::Value::from(page.route.as_str()),
+            );
+            page_map.insert(
+                VString::from("weight"),
+                facet_value::Value::from(page.weight as i64),
+            );
             page_map.insert(VString::from("extra"), page.extra.clone());
-            page_map.insert(VString::from("headings_count"), facet_value::Value::from(page.headings.len() as i64));
+            page_map.insert(
+                VString::from("headings_count"),
+                facet_value::Value::from(page.headings.len() as i64),
+            );
             scope.insert(VString::from("page"), facet_value::Value::from(page_map));
 
             // Add parent section
             if let Some(section) = site_tree.sections.get(&page.section_route) {
                 let mut section_map = VObject::new();
-                section_map.insert(VString::from("title"), facet_value::Value::from(section.title.as_str()));
-                section_map.insert(VString::from("permalink"), facet_value::Value::from(section.route.as_str()));
-                scope.insert(VString::from("section"), facet_value::Value::from(section_map));
+                section_map.insert(
+                    VString::from("title"),
+                    facet_value::Value::from(section.title.as_str()),
+                );
+                section_map.insert(
+                    VString::from("permalink"),
+                    facet_value::Value::from(section.route.as_str()),
+                );
+                scope.insert(
+                    VString::from("section"),
+                    facet_value::Value::from(section_map),
+                );
             }
         }
 
         // Add root section info
         if let Some(root) = site_tree.sections.get(&Route::root()) {
             let mut root_map = VObject::new();
-            root_map.insert(VString::from("title"), facet_value::Value::from(root.title.as_str()));
+            root_map.insert(
+                VString::from("title"),
+                facet_value::Value::from(root.title.as_str()),
+            );
 
             // Count total sections and pages
             let section_count = site_tree.sections.len();
             let page_count = site_tree.pages.len();
-            root_map.insert(VString::from("sections_count"), facet_value::Value::from(section_count as i64));
-            root_map.insert(VString::from("pages_count"), facet_value::Value::from(page_count as i64));
+            root_map.insert(
+                VString::from("sections_count"),
+                facet_value::Value::from(section_count as i64),
+            );
+            root_map.insert(
+                VString::from("pages_count"),
+                facet_value::Value::from(page_count as i64),
+            );
 
             scope.insert(VString::from("root"), facet_value::Value::from(root_map));
         }
@@ -939,7 +1064,11 @@ impl SiteServer {
     }
 
     /// Evaluate an expression against the scope for a route (for REPL)
-    pub fn eval_expression_for_route(&self, route_path: &str, expression: &str) -> Result<ScopeValue, String> {
+    pub fn eval_expression_for_route(
+        &self,
+        route_path: &str,
+        expression: &str,
+    ) -> Result<ScopeValue, String> {
         use facet_value::{VObject, VString};
 
         // Snapshot pattern: lock, clone, release, then query the clone
@@ -955,7 +1084,11 @@ impl SiteServer {
             "/".to_string()
         } else {
             let trimmed = route_path.trim_end_matches('/');
-            if trimmed.is_empty() { "/".to_string() } else { trimmed.to_string() }
+            if trimmed.is_empty() {
+                "/".to_string()
+            } else {
+                trimmed.to_string()
+            }
         };
         let route = Route::new(route_str);
 
@@ -967,10 +1100,21 @@ impl SiteServer {
         let (site_title, site_description) = site_tree
             .sections
             .get(&Route::root())
-            .map(|root| (root.title.to_string(), root.description.clone().unwrap_or_default()))
+            .map(|root| {
+                (
+                    root.title.to_string(),
+                    root.description.clone().unwrap_or_default(),
+                )
+            })
             .unwrap_or_else(|| ("Untitled".to_string(), String::new()));
-        config_map.insert(VString::from("title"), facet_value::Value::from(site_title.as_str()));
-        config_map.insert(VString::from("description"), facet_value::Value::from(site_description.as_str()));
+        config_map.insert(
+            VString::from("title"),
+            facet_value::Value::from(site_title.as_str()),
+        );
+        config_map.insert(
+            VString::from("description"),
+            facet_value::Value::from(site_description.as_str()),
+        );
         config_map.insert(VString::from("base_url"), facet_value::Value::from("/"));
         ctx.set("config", facet_value::Value::from(config_map));
 
@@ -1031,22 +1175,29 @@ impl SiteServer {
                 } else {
                     path.trim_end_matches('/').to_string()
                 };
-                RpcServeContent::Html { content: html, route }
+                RpcServeContent::Html {
+                    content: html,
+                    route,
+                }
             }
             Some(ServeContent::Css(css)) => {
                 self.cache_css(path);
                 RpcServeContent::Css { content: css }
             }
-            Some(ServeContent::Static(bytes, mime)) => {
-                RpcServeContent::Static { content: bytes, mime: mime.to_string() }
-            }
-            Some(ServeContent::StaticNoCache(bytes, mime)) => {
-                RpcServeContent::StaticNoCache { content: bytes, mime: mime.to_string() }
-            }
+            Some(ServeContent::Static(bytes, mime)) => RpcServeContent::Static {
+                content: bytes,
+                mime: mime.to_string(),
+            },
+            Some(ServeContent::StaticNoCache(bytes, mime)) => RpcServeContent::StaticNoCache {
+                content: bytes,
+                mime: mime.to_string(),
+            },
             None => {
                 // 404 with similar routes
                 let similar = self.find_similar_routes(path);
-                RpcServeContent::NotFound { similar_routes: similar }
+                RpcServeContent::NotFound {
+                    similar_routes: similar,
+                }
             }
         }
     }
@@ -1070,7 +1221,11 @@ impl SiteServer {
             let route_str = route.as_str().trim_matches('/').to_lowercase();
             let score = similarity_score(&requested, &requested_parts, &route_str);
             if score > 0 {
-                candidates.push((route.as_str().to_string(), section.title.as_str().to_string(), score));
+                candidates.push((
+                    route.as_str().to_string(),
+                    section.title.as_str().to_string(),
+                    score,
+                ));
             }
         }
 
@@ -1078,13 +1233,18 @@ impl SiteServer {
             let route_str = route.as_str().trim_matches('/').to_lowercase();
             let score = similarity_score(&requested, &requested_parts, &route_str);
             if score > 0 {
-                candidates.push((route.as_str().to_string(), page.title.as_str().to_string(), score));
+                candidates.push((
+                    route.as_str().to_string(),
+                    page.title.as_str().to_string(),
+                    score,
+                ));
             }
         }
 
         // Sort by score (descending) and take top 5
         candidates.sort_by(|a, b| b.2.cmp(&a.2));
-        candidates.into_iter()
+        candidates
+            .into_iter()
             .take(5)
             .map(|(route, title, _score)| (route, title))
             .collect()
@@ -1114,7 +1274,8 @@ fn similarity_score(requested: &str, requested_parts: &[&str], route: &str) -> u
     }
 
     // Check for common prefix
-    let common_prefix = requested.chars()
+    let common_prefix = requested
+        .chars()
         .zip(route.chars())
         .take_while(|(a, b)| a == b)
         .count();
@@ -1170,31 +1331,45 @@ pub fn devtools_urls() -> (String, String) {
 const SNIPPETS: &[(&str, &str)] = &[
     (
         "snippets/dioxus-cli-config-e5fab7f8a0eb9fbb/inline0.js",
-        include_str!("../../../crates/dodeca-devtools/pkg/snippets/dioxus-cli-config-e5fab7f8a0eb9fbb/inline0.js"),
+        include_str!(
+            "../../../crates/dodeca-devtools/pkg/snippets/dioxus-cli-config-e5fab7f8a0eb9fbb/inline0.js"
+        ),
     ),
     (
         "snippets/dioxus-interpreter-js-267e64abc8a52eaa/inline0.js",
-        include_str!("../../../crates/dodeca-devtools/pkg/snippets/dioxus-interpreter-js-267e64abc8a52eaa/inline0.js"),
+        include_str!(
+            "../../../crates/dodeca-devtools/pkg/snippets/dioxus-interpreter-js-267e64abc8a52eaa/inline0.js"
+        ),
     ),
     (
         "snippets/dioxus-interpreter-js-267e64abc8a52eaa/src/js/patch_console.js",
-        include_str!("../../../crates/dodeca-devtools/pkg/snippets/dioxus-interpreter-js-267e64abc8a52eaa/src/js/patch_console.js"),
+        include_str!(
+            "../../../crates/dodeca-devtools/pkg/snippets/dioxus-interpreter-js-267e64abc8a52eaa/src/js/patch_console.js"
+        ),
     ),
     (
         "snippets/dioxus-interpreter-js-267e64abc8a52eaa/src/js/hydrate.js",
-        include_str!("../../../crates/dodeca-devtools/pkg/snippets/dioxus-interpreter-js-267e64abc8a52eaa/src/js/hydrate.js"),
+        include_str!(
+            "../../../crates/dodeca-devtools/pkg/snippets/dioxus-interpreter-js-267e64abc8a52eaa/src/js/hydrate.js"
+        ),
     ),
     (
         "snippets/dioxus-interpreter-js-267e64abc8a52eaa/src/js/set_attribute.js",
-        include_str!("../../../crates/dodeca-devtools/pkg/snippets/dioxus-interpreter-js-267e64abc8a52eaa/src/js/set_attribute.js"),
+        include_str!(
+            "../../../crates/dodeca-devtools/pkg/snippets/dioxus-interpreter-js-267e64abc8a52eaa/src/js/set_attribute.js"
+        ),
     ),
     (
         "snippets/dioxus-web-807c31b5ece9dd6a/inline0.js",
-        include_str!("../../../crates/dodeca-devtools/pkg/snippets/dioxus-web-807c31b5ece9dd6a/inline0.js"),
+        include_str!(
+            "../../../crates/dodeca-devtools/pkg/snippets/dioxus-web-807c31b5ece9dd6a/inline0.js"
+        ),
     ),
     (
         "snippets/dioxus-web-807c31b5ece9dd6a/src/js/eval.js",
-        include_str!("../../../crates/dodeca-devtools/pkg/snippets/dioxus-web-807c31b5ece9dd6a/src/js/eval.js"),
+        include_str!(
+            "../../../crates/dodeca-devtools/pkg/snippets/dioxus-web-807c31b5ece9dd6a/src/js/eval.js"
+        ),
     ),
 ];
 

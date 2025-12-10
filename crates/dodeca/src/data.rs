@@ -180,11 +180,23 @@ mod tests {
 
     #[test]
     fn test_format_from_extension() {
-        assert_eq!(DataFormat::from_extension("foo.toml"), Some(DataFormat::Toml));
-        assert_eq!(DataFormat::from_extension("bar.json"), Some(DataFormat::Json));
+        assert_eq!(
+            DataFormat::from_extension("foo.toml"),
+            Some(DataFormat::Toml)
+        );
+        assert_eq!(
+            DataFormat::from_extension("bar.json"),
+            Some(DataFormat::Json)
+        );
         assert_eq!(DataFormat::from_extension("baz.kdl"), Some(DataFormat::Kdl));
-        assert_eq!(DataFormat::from_extension("qux.yaml"), Some(DataFormat::Yaml));
-        assert_eq!(DataFormat::from_extension("qux.yml"), Some(DataFormat::Yaml));
+        assert_eq!(
+            DataFormat::from_extension("qux.yaml"),
+            Some(DataFormat::Yaml)
+        );
+        assert_eq!(
+            DataFormat::from_extension("qux.yml"),
+            Some(DataFormat::Yaml)
+        );
         assert_eq!(DataFormat::from_extension("unknown.txt"), None);
     }
 

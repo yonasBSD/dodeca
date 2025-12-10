@@ -169,9 +169,9 @@ impl LazyValue {
     pub fn resolve(&self) -> Result<facet_value::Value> {
         match self {
             Self::Concrete(value) => Ok(value.clone()),
-            Self::Lazy { resolver, path } => resolver.resolve(path).ok_or_else(|| {
-                miette::miette!("Data path not found: {}", path)
-            }),
+            Self::Lazy { resolver, path } => resolver
+                .resolve(path)
+                .ok_or_else(|| miette::miette!("Data path not found: {}", path)),
         }
     }
 
@@ -187,7 +187,12 @@ impl LazyValue {
     ///
     /// For lazy values, this extends the path without resolving.
     /// For concrete values, this performs normal field access.
-    pub fn field(&self, name: &str, span: crate::ast::Span, source: &TemplateSource) -> Result<LazyValue> {
+    pub fn field(
+        &self,
+        name: &str,
+        span: crate::ast::Span,
+        source: &TemplateSource,
+    ) -> Result<LazyValue> {
         match self {
             Self::Lazy { resolver, path } => {
                 // Extend the path - don't resolve yet!
@@ -199,11 +204,8 @@ impl LazyValue {
             Self::Concrete(value) => {
                 // Normal field access on concrete value
                 match value.destructure_ref() {
-                    DestructuredRef::Object(obj) => obj
-                        .get(name)
-                        .cloned()
-                        .map(Self::Concrete)
-                        .ok_or_else(|| {
+                    DestructuredRef::Object(obj) => {
+                        obj.get(name).cloned().map(Self::Concrete).ok_or_else(|| {
                             UnknownFieldError {
                                 base_type: "dict".to_string(),
                                 field: name.to_string(),
@@ -212,7 +214,8 @@ impl LazyValue {
                                 src: source.named_source(),
                             }
                             .into()
-                        }),
+                        })
+                    }
                     _ => Err(TypeError {
                         expected: "object or dict".to_string(),
                         found: self.type_name().to_string(),
@@ -230,7 +233,12 @@ impl LazyValue {
     ///
     /// For lazy values, this extends the path with the index.
     /// For concrete values, this performs normal index access.
-    pub fn index(&self, idx: i64, span: crate::ast::Span, source: &TemplateSource) -> Result<LazyValue> {
+    pub fn index(
+        &self,
+        idx: i64,
+        span: crate::ast::Span,
+        source: &TemplateSource,
+    ) -> Result<LazyValue> {
         match self {
             Self::Lazy { resolver, path } => {
                 // Extend the path with the index
@@ -239,73 +247,70 @@ impl LazyValue {
                     path: path.push(idx.to_string()),
                 })
             }
-            Self::Concrete(value) => {
-                match value.destructure_ref() {
-                    DestructuredRef::Array(arr) => {
-                        let i = if idx < 0 {
-                            (arr.len() as i64 + idx) as usize
-                        } else {
-                            idx as usize
-                        };
-                        arr.get(i).cloned().map(Self::Concrete).ok_or_else(|| {
-                            TypeError {
-                                expected: format!("index < {}", arr.len()),
-                                found: format!("index {i}"),
-                                context: "list index".to_string(),
-                                span,
-                                src: source.named_source(),
-                            }
-                            .into()
-                        })
-                    }
-                    _ => Err(TypeError {
-                        expected: "list".to_string(),
-                        found: self.type_name().to_string(),
-                        context: "index access".to_string(),
-                        span,
-                        src: source.named_source(),
-                    }
-                    .into()),
+            Self::Concrete(value) => match value.destructure_ref() {
+                DestructuredRef::Array(arr) => {
+                    let i = if idx < 0 {
+                        (arr.len() as i64 + idx) as usize
+                    } else {
+                        idx as usize
+                    };
+                    arr.get(i).cloned().map(Self::Concrete).ok_or_else(|| {
+                        TypeError {
+                            expected: format!("index < {}", arr.len()),
+                            found: format!("index {i}"),
+                            context: "list index".to_string(),
+                            span,
+                            src: source.named_source(),
+                        }
+                        .into()
+                    })
                 }
-            }
+                _ => Err(TypeError {
+                    expected: "list".to_string(),
+                    found: self.type_name().to_string(),
+                    context: "index access".to_string(),
+                    span,
+                    src: source.named_source(),
+                }
+                .into()),
+            },
         }
     }
 
     /// Access by string key (for object["key"] syntax).
-    pub fn index_str(&self, key: &str, span: crate::ast::Span, source: &TemplateSource) -> Result<LazyValue> {
+    pub fn index_str(
+        &self,
+        key: &str,
+        span: crate::ast::Span,
+        source: &TemplateSource,
+    ) -> Result<LazyValue> {
         match self {
-            Self::Lazy { resolver, path } => {
-                Ok(Self::Lazy {
-                    resolver: resolver.clone(),
-                    path: path.push(key),
-                })
-            }
-            Self::Concrete(value) => {
-                match value.destructure_ref() {
-                    DestructuredRef::Object(obj) => obj
-                        .get(key)
-                        .cloned()
-                        .map(Self::Concrete)
-                        .ok_or_else(|| {
-                            UnknownFieldError {
-                                base_type: "dict".to_string(),
-                                field: key.to_string(),
-                                known_fields: obj.keys().map(|k| k.to_string()).collect(),
-                                span,
-                                src: source.named_source(),
-                            }
-                            .into()
-                        }),
-                    _ => Err(TypeError {
-                        expected: "dict".to_string(),
-                        found: self.type_name().to_string(),
-                        context: "string index access".to_string(),
-                        span,
-                        src: source.named_source(),
-                    }
-                    .into()),
+            Self::Lazy { resolver, path } => Ok(Self::Lazy {
+                resolver: resolver.clone(),
+                path: path.push(key),
+            }),
+            Self::Concrete(value) => match value.destructure_ref() {
+                DestructuredRef::Object(obj) => {
+                    obj.get(key).cloned().map(Self::Concrete).ok_or_else(|| {
+                        UnknownFieldError {
+                            base_type: "dict".to_string(),
+                            field: key.to_string(),
+                            known_fields: obj.keys().map(|k| k.to_string()).collect(),
+                            span,
+                            src: source.named_source(),
+                        }
+                        .into()
+                    })
                 }
-            }
+                _ => Err(TypeError {
+                    expected: "dict".to_string(),
+                    found: self.type_name().to_string(),
+                    context: "string index access".to_string(),
+                    span,
+                    src: source.named_source(),
+                }
+                .into()),
+            },
         }
     }
 
@@ -359,9 +364,7 @@ impl LazyValue {
                     .collect()
             }
             Self::Concrete(value) => match value.destructure_ref() {
-                DestructuredRef::Array(arr) => {
-                    arr.iter().cloned().map(Self::Concrete).collect()
-                }
+                DestructuredRef::Array(arr) => arr.iter().cloned().map(Self::Concrete).collect(),
                 DestructuredRef::Object(obj) => {
                     // For object iteration, return key-value pair objects
                     obj.iter()
@@ -546,7 +549,9 @@ mod tests {
             let value = self.resolve(path)?;
             match value.destructure_ref() {
                 DestructuredRef::Object(obj) => Some(obj.keys().map(|k| k.to_string()).collect()),
-                DestructuredRef::Array(arr) => Some((0..arr.len()).map(|i| i.to_string()).collect()),
+                DestructuredRef::Array(arr) => {
+                    Some((0..arr.len()).map(|i| i.to_string()).collect())
+                }
                 _ => None,
             }
         }
@@ -646,7 +651,11 @@ mod tests {
 
         // Now we should have resolved the specific path
         let paths = resolver.resolved_paths();
-        assert!(paths.iter().any(|p| p.segments() == ["versions", "dodeca", "version"]));
+        assert!(
+            paths
+                .iter()
+                .any(|p| p.segments() == ["versions", "dodeca", "version"])
+        );
     }
 
     #[test]
@@ -676,9 +685,12 @@ mod tests {
 
         let source = crate::error::TemplateSource::new("test", "");
         let version = lazy
-            .field("versions", test_span(), &source).unwrap()
-            .field("dodeca", test_span(), &source).unwrap()
-            .field("version", test_span(), &source).unwrap();
+            .field("versions", test_span(), &source)
+            .unwrap()
+            .field("dodeca", test_span(), &source)
+            .unwrap()
+            .field("version", test_span(), &source)
+            .unwrap();
 
         // render_to_string triggers resolution
         assert_eq!(version.render_to_string(), "0.1.0");

@@ -440,9 +440,7 @@ impl<'a, L: TemplateLoader> Renderer<'a, L> {
                     }
 
                     // Else branch
-                    if !handled
-                        && let Some(else_body) = &if_node.else_body
-                    {
+                    if !handled && let Some(else_body) = &if_node.else_body {
                         let control = self.render_nodes(else_body)?;
                         if control != LoopControl::None {
                             return Ok(control);
@@ -527,15 +525,14 @@ impl<'a, L: TemplateLoader> Renderer<'a, L> {
             }
             Node::Block(block) => {
                 // Check if we have an override for this block
-                let control =
-                    if let Some(block_def) = self.blocks.get(&block.name.name).cloned() {
-                        // Render the overridden block content with its original source
-                        // (for correct error reporting)
-                        self.render_nodes_with_source(&block_def.nodes, block_def.source)?
-                    } else {
-                        // Render the default block content
-                        self.render_nodes(&block.body)?
-                    };
+                let control = if let Some(block_def) = self.blocks.get(&block.name.name).cloned() {
+                    // Render the overridden block content with its original source
+                    // (for correct error reporting)
+                    self.render_nodes_with_source(&block_def.nodes, block_def.source)?
+                } else {
+                    // Render the default block content
+                    self.render_nodes(&block.body)?
+                };
                 if control != LoopControl::None {
                     return Ok(control);
                 }
@@ -756,14 +753,16 @@ mod tests {
     #[test]
     fn test_for_loop() {
         let t = Template::parse("test", "{% for item in items %}{{ item }} {% endfor %}").unwrap();
-        let items: Value = VArray::from_iter([Value::from("a"), Value::from("b"), Value::from("c")]).into();
+        let items: Value =
+            VArray::from_iter([Value::from("a"), Value::from("b"), Value::from("c")]).into();
         let result = t.render_with([("items", items)]).unwrap();
         assert_eq!(result, "a b c ");
     }
 
     #[test]
     fn test_loop_index() {
-        let t = Template::parse("test", "{% for x in items %}{{ loop.index }}{% endfor %}").unwrap();
+        let t =
+            Template::parse("test", "{% for x in items %}{{ loop.index }}{% endfor %}").unwrap();
         let items: Value = VArray::from_iter([Value::from("a"), Value::from("b")]).into();
         let result = t.render_with([("items", items)]).unwrap();
         assert_eq!(result, "12");
@@ -789,14 +788,21 @@ mod tests {
     #[test]
     fn test_html_escape() {
         let t = Template::parse("test", "{{ content }}").unwrap();
-        let result = t.render_with([("content", Value::from("<script>alert('xss')</script>"))]).unwrap();
-        assert_eq!(result, "&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;");
+        let result = t
+            .render_with([("content", Value::from("<script>alert('xss')</script>"))])
+            .unwrap();
+        assert_eq!(
+            result,
+            "&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;"
+        );
     }
 
     #[test]
     fn test_safe_filter() {
         let t = Template::parse("test", "{{ content | safe }}").unwrap();
-        let result = t.render_with([("content", Value::from("<b>bold</b>"))]).unwrap();
+        let result = t
+            .render_with([("content", Value::from("<b>bold</b>"))])
+            .unwrap();
         // Note: safe filter doesn't work with facet_value since we can't track "safe" status
         // This test just verifies the filter doesn't error
         assert!(result.contains("bold"));
@@ -805,13 +811,19 @@ mod tests {
     #[test]
     fn test_safe_filter_with_other_filters() {
         let t = Template::parse("test", "{{ content | upper | safe }}").unwrap();
-        let result = t.render_with([("content", Value::from("<b>bold</b>"))]).unwrap();
+        let result = t
+            .render_with([("content", Value::from("<b>bold</b>"))])
+            .unwrap();
         assert!(result.contains("BOLD"));
     }
 
     #[test]
     fn test_split_filter() {
-        let t = Template::parse("test", "{% for p in path | split(pat=\"/\") %}[{{ p }}]{% endfor %}").unwrap();
+        let t = Template::parse(
+            "test",
+            "{% for p in path | split(pat=\"/\") %}[{{ p }}]{% endfor %}",
+        )
+        .unwrap();
         let result = t.render_with([("path", Value::from("a/b/c"))]).unwrap();
         assert_eq!(result, "[a][b][c]");
     }
@@ -821,10 +833,16 @@ mod tests {
         let t = Template::parse("test", "{{ greet(name) }}").unwrap();
         let mut ctx = Context::new();
         ctx.set("name", Value::from("World"));
-        ctx.register_fn("greet", Box::new(|args: &[Value], _kwargs| {
-            let name = args.first().map(|v| v.render_to_string()).unwrap_or_default();
-            Ok(Value::from(format!("Hello, {name}!").as_str()))
-        }));
+        ctx.register_fn(
+            "greet",
+            Box::new(|args: &[Value], _kwargs| {
+                let name = args
+                    .first()
+                    .map(|v| v.render_to_string())
+                    .unwrap_or_default();
+                Ok(Value::from(format!("Hello, {name}!").as_str()))
+            }),
+        );
         let result = t.render(&ctx).unwrap();
         assert_eq!(result, "Hello, World!");
     }
@@ -845,14 +863,22 @@ mod tests {
 
     #[test]
     fn test_macro_simple() {
-        let t = Template::parse("test", "{% macro greet(name) %}Hello, {{ name }}!{% endmacro %}{{ self::greet(\"World\") }}").unwrap();
+        let t = Template::parse(
+            "test",
+            "{% macro greet(name) %}Hello, {{ name }}!{% endmacro %}{{ self::greet(\"World\") }}",
+        )
+        .unwrap();
         let result = t.render(&Context::new()).unwrap();
         assert_eq!(result, "Hello, World!");
     }
 
     #[test]
     fn test_macro_with_default() {
-        let t = Template::parse("test", "{% macro greet(name=\"Guest\") %}Hello, {{ name }}!{% endmacro %}{{ self::greet() }}").unwrap();
+        let t = Template::parse(
+            "test",
+            "{% macro greet(name=\"Guest\") %}Hello, {{ name }}!{% endmacro %}{{ self::greet() }}",
+        )
+        .unwrap();
         let result = t.render(&Context::new()).unwrap();
         assert_eq!(result, "Hello, Guest!");
     }
@@ -873,7 +899,11 @@ mod tests {
 
     #[test]
     fn test_macro_multiple_calls() {
-        let t = Template::parse("test", "{% macro twice(x) %}{{ x }}{{ x }}{% endmacro %}{{ self::twice(\"ab\") }}").unwrap();
+        let t = Template::parse(
+            "test",
+            "{% macro twice(x) %}{{ x }}{{ x }}{% endmacro %}{{ self::twice(\"ab\") }}",
+        )
+        .unwrap();
         let result = t.render(&Context::new()).unwrap();
         assert_eq!(result, "abab");
     }
@@ -881,8 +911,14 @@ mod tests {
     #[test]
     fn test_template_inheritance() {
         let mut loader = InMemoryLoader::new();
-        loader.add("base.html", "Header {% block content %}default{% endblock %} Footer");
-        loader.add("child.html", "{% extends \"base.html\" %}{% block content %}CUSTOM{% endblock %}");
+        loader.add(
+            "base.html",
+            "Header {% block content %}default{% endblock %} Footer",
+        );
+        loader.add(
+            "child.html",
+            "{% extends \"base.html\" %}{% block content %}CUSTOM{% endblock %}",
+        );
 
         let mut engine = Engine::new(loader);
         let result = engine.render("child.html", &Context::new()).unwrap();
@@ -893,7 +929,10 @@ mod tests {
     fn test_template_inheritance_with_variables() {
         let mut loader = InMemoryLoader::new();
         loader.add("base.html", "{% block title %}Default{% endblock %}");
-        loader.add("child.html", "{% extends \"base.html\" %}{% block title %}{{ page_title }}{% endblock %}");
+        loader.add(
+            "child.html",
+            "{% extends \"base.html\" %}{% block title %}{{ page_title }}{% endblock %}",
+        );
 
         let mut engine = Engine::new(loader);
         let mut ctx = Context::new();
@@ -928,8 +967,14 @@ mod tests {
     #[test]
     fn test_multiple_blocks() {
         let mut loader = InMemoryLoader::new();
-        loader.add("base.html", "[{% block a %}A{% endblock %}][{% block b %}B{% endblock %}]");
-        loader.add("child.html", "{% extends \"base.html\" %}{% block a %}X{% endblock %}");
+        loader.add(
+            "base.html",
+            "[{% block a %}A{% endblock %}][{% block b %}B{% endblock %}]",
+        );
+        loader.add(
+            "child.html",
+            "{% extends \"base.html\" %}{% block a %}X{% endblock %}",
+        );
 
         let mut engine = Engine::new(loader);
         let result = engine.render("child.html", &Context::new()).unwrap();
@@ -939,8 +984,14 @@ mod tests {
     #[test]
     fn test_macro_import() {
         let mut loader = InMemoryLoader::new();
-        loader.add("macros.html", "{% macro hello(name) %}Hello, {{ name }}!{% endmacro %}");
-        loader.add("page.html", "{% import \"macros.html\" as m %}{{ m::hello(\"World\") }}");
+        loader.add(
+            "macros.html",
+            "{% macro hello(name) %}Hello, {{ name }}!{% endmacro %}",
+        );
+        loader.add(
+            "page.html",
+            "{% import \"macros.html\" as m %}{{ m::hello(\"World\") }}",
+        );
 
         let mut engine = Engine::new(loader);
         let result = engine.render("page.html", &Context::new()).unwrap();
@@ -949,15 +1000,27 @@ mod tests {
 
     #[test]
     fn test_is_starting_with() {
-        let t = Template::parse("test", "{% if path is starting_with(\"/admin\") %}admin{% else %}user{% endif %}").unwrap();
-        let result = t.render_with([("path", Value::from("/admin/dashboard"))]).unwrap();
+        let t = Template::parse(
+            "test",
+            "{% if path is starting_with(\"/admin\") %}admin{% else %}user{% endif %}",
+        )
+        .unwrap();
+        let result = t
+            .render_with([("path", Value::from("/admin/dashboard"))])
+            .unwrap();
         assert_eq!(result, "admin");
     }
 
     #[test]
     fn test_is_containing() {
-        let t = Template::parse("test", "{% if text is containing(\"foo\") %}yes{% else %}no{% endif %}").unwrap();
-        let result = t.render_with([("text", Value::from("hello foo bar"))]).unwrap();
+        let t = Template::parse(
+            "test",
+            "{% if text is containing(\"foo\") %}yes{% else %}no{% endif %}",
+        )
+        .unwrap();
+        let result = t
+            .render_with([("text", Value::from("hello foo bar"))])
+            .unwrap();
         assert_eq!(result, "yes");
     }
 
@@ -971,16 +1034,26 @@ mod tests {
 
     #[test]
     fn test_continue_in_loop() {
-        let t = Template::parse("test", "{% for i in items %}{% if i == 2 %}{% continue %}{% endif %}{{ i }}{% endfor %}").unwrap();
-        let items: Value = VArray::from_iter([Value::from(1i64), Value::from(2i64), Value::from(3i64)]).into();
+        let t = Template::parse(
+            "test",
+            "{% for i in items %}{% if i == 2 %}{% continue %}{% endif %}{{ i }}{% endfor %}",
+        )
+        .unwrap();
+        let items: Value =
+            VArray::from_iter([Value::from(1i64), Value::from(2i64), Value::from(3i64)]).into();
         let result = t.render_with([("items", items)]).unwrap();
         assert_eq!(result, "13");
     }
 
     #[test]
     fn test_break_in_loop() {
-        let t = Template::parse("test", "{% for i in items %}{% if i == 2 %}{% break %}{% endif %}{{ i }}{% endfor %}").unwrap();
-        let items: Value = VArray::from_iter([Value::from(1i64), Value::from(2i64), Value::from(3i64)]).into();
+        let t = Template::parse(
+            "test",
+            "{% for i in items %}{% if i == 2 %}{% break %}{% endif %}{{ i }}{% endfor %}",
+        )
+        .unwrap();
+        let items: Value =
+            VArray::from_iter([Value::from(1i64), Value::from(2i64), Value::from(3i64)]).into();
         let result = t.render_with([("items", items)]).unwrap();
         assert_eq!(result, "1");
     }
@@ -988,7 +1061,8 @@ mod tests {
     #[test]
     fn test_continue_with_loop_index() {
         let t = Template::parse("test", "{% for x in items %}{% if loop.index == 2 %}{% continue %}{% endif %}[{{ x }}]{% endfor %}").unwrap();
-        let items: Value = VArray::from_iter([Value::from("a"), Value::from("b"), Value::from("c")]).into();
+        let items: Value =
+            VArray::from_iter([Value::from("a"), Value::from("b"), Value::from("c")]).into();
         let result = t.render_with([("items", items)]).unwrap();
         assert_eq!(result, "[a][c]");
     }
@@ -996,7 +1070,8 @@ mod tests {
     #[test]
     fn test_break_in_nested_if() {
         let t = Template::parse("test", "{% for i in items %}{% if i > 1 %}{% if i == 2 %}{% break %}{% endif %}{% endif %}{{ i }}{% endfor %}").unwrap();
-        let items: Value = VArray::from_iter([Value::from(1i64), Value::from(2i64), Value::from(3i64)]).into();
+        let items: Value =
+            VArray::from_iter([Value::from(1i64), Value::from(2i64), Value::from(3i64)]).into();
         let result = t.render_with([("items", items)]).unwrap();
         assert_eq!(result, "1");
     }
@@ -1005,14 +1080,21 @@ mod tests {
     fn test_error_source_in_inherited_block() {
         let mut loader = InMemoryLoader::new();
         loader.add("base.html", "{% block content %}{% endblock %}");
-        loader.add("child.html", "{% extends \"base.html\" %}{% block content %}{{ undefined_var }}{% endblock %}");
+        loader.add(
+            "child.html",
+            "{% extends \"base.html\" %}{% block content %}{{ undefined_var }}{% endblock %}",
+        );
 
         let mut engine = Engine::new(loader);
         let result = engine.render("child.html", &Context::new());
         assert!(result.is_err());
         let err = format!("{:?}", result.unwrap_err());
         // The error should reference child.html, not base.html
-        assert!(err.contains("child.html"), "Error should reference child.html: {}", err);
+        assert!(
+            err.contains("child.html"),
+            "Error should reference child.html: {}",
+            err
+        );
     }
 
     // ========================================================================
@@ -1022,8 +1104,14 @@ mod tests {
     #[test]
     fn test_typeof_filter() {
         let t = Template::parse("test", "{{ x | typeof }}").unwrap();
-        assert_eq!(t.render_with([("x", Value::from("hello"))]).unwrap(), "string");
-        assert_eq!(t.render_with([("x", Value::from(42i64))]).unwrap(), "number");
+        assert_eq!(
+            t.render_with([("x", Value::from("hello"))]).unwrap(),
+            "string"
+        );
+        assert_eq!(
+            t.render_with([("x", Value::from(42i64))]).unwrap(),
+            "number"
+        );
         assert_eq!(t.render_with([("x", Value::NULL)]).unwrap(), "none");
 
         let arr: Value = VArray::from_iter([Value::from(1i64)]).into();
@@ -1035,35 +1123,68 @@ mod tests {
 
     #[test]
     fn test_slice_filter_kwargs() {
-        let t = Template::parse("test", "{% for x in items | slice(end=2) %}{{ x }}{% endfor %}").unwrap();
-        let items: Value = VArray::from_iter([Value::from("a"), Value::from("b"), Value::from("c")]).into();
+        let t = Template::parse(
+            "test",
+            "{% for x in items | slice(end=2) %}{{ x }}{% endfor %}",
+        )
+        .unwrap();
+        let items: Value =
+            VArray::from_iter([Value::from("a"), Value::from("b"), Value::from("c")]).into();
         assert_eq!(t.render_with([("items", items)]).unwrap(), "ab");
     }
 
     #[test]
     fn test_slice_filter_start_end() {
-        let t = Template::parse("test", "{% for x in items | slice(start=1, end=3) %}{{ x }}{% endfor %}").unwrap();
-        let items: Value = VArray::from_iter([Value::from("a"), Value::from("b"), Value::from("c"), Value::from("d")]).into();
+        let t = Template::parse(
+            "test",
+            "{% for x in items | slice(start=1, end=3) %}{{ x }}{% endfor %}",
+        )
+        .unwrap();
+        let items: Value = VArray::from_iter([
+            Value::from("a"),
+            Value::from("b"),
+            Value::from("c"),
+            Value::from("d"),
+        ])
+        .into();
         assert_eq!(t.render_with([("items", items)]).unwrap(), "bc");
     }
 
     #[test]
     fn test_slice_filter_positional() {
-        let t = Template::parse("test", "{% for x in items | slice(1, 3) %}{{ x }}{% endfor %}").unwrap();
-        let items: Value = VArray::from_iter([Value::from("a"), Value::from("b"), Value::from("c"), Value::from("d")]).into();
+        let t = Template::parse(
+            "test",
+            "{% for x in items | slice(1, 3) %}{{ x }}{% endfor %}",
+        )
+        .unwrap();
+        let items: Value = VArray::from_iter([
+            Value::from("a"),
+            Value::from("b"),
+            Value::from("c"),
+            Value::from("d"),
+        ])
+        .into();
         assert_eq!(t.render_with([("items", items)]).unwrap(), "bc");
     }
 
     #[test]
     fn test_slice_filter_empty() {
-        let t = Template::parse("test", "{% for x in items | slice(end=0) %}{{ x }}{% endfor %}").unwrap();
+        let t = Template::parse(
+            "test",
+            "{% for x in items | slice(end=0) %}{{ x }}{% endfor %}",
+        )
+        .unwrap();
         let items: Value = VArray::from_iter([Value::from("a"), Value::from("b")]).into();
         assert_eq!(t.render_with([("items", items)]).unwrap(), "");
     }
 
     #[test]
     fn test_map_filter() {
-        let t = Template::parse("test", "{{ items | map(attribute=\"name\") | join(\", \") }}").unwrap();
+        let t = Template::parse(
+            "test",
+            "{{ items | map(attribute=\"name\") | join(\", \") }}",
+        )
+        .unwrap();
 
         let mut item1 = VObject::new();
         item1.insert(VString::from("name"), Value::from("Alice"));
@@ -1076,7 +1197,8 @@ mod tests {
 
     #[test]
     fn test_map_filter_missing_attr() {
-        let t = Template::parse("test", "{{ items | map(attribute=\"missing\") | length }}").unwrap();
+        let t =
+            Template::parse("test", "{{ items | map(attribute=\"missing\") | length }}").unwrap();
 
         let mut item1 = VObject::new();
         item1.insert(VString::from("name"), Value::from("Alice"));
@@ -1088,7 +1210,11 @@ mod tests {
 
     #[test]
     fn test_selectattr_truthy() {
-        let t = Template::parse("test", "{% for x in items | selectattr(\"active\") %}{{ x.name }}{% endfor %}").unwrap();
+        let t = Template::parse(
+            "test",
+            "{% for x in items | selectattr(\"active\") %}{{ x.name }}{% endfor %}",
+        )
+        .unwrap();
 
         let mut item1 = VObject::new();
         item1.insert(VString::from("name"), Value::from("Alice"));
@@ -1100,7 +1226,8 @@ mod tests {
         item3.insert(VString::from("name"), Value::from("Carol"));
         item3.insert(VString::from("active"), Value::from(true));
 
-        let items: Value = VArray::from_iter([Value::from(item1), Value::from(item2), Value::from(item3)]).into();
+        let items: Value =
+            VArray::from_iter([Value::from(item1), Value::from(item2), Value::from(item3)]).into();
         assert_eq!(t.render_with([("items", items)]).unwrap(), "AliceCarol");
     }
 
@@ -1121,7 +1248,11 @@ mod tests {
 
     #[test]
     fn test_selectattr_gt() {
-        let t = Template::parse("test", "{% for x in items | selectattr(\"weight\", \"gt\", 5) %}{{ x.name }}{% endfor %}").unwrap();
+        let t = Template::parse(
+            "test",
+            "{% for x in items | selectattr(\"weight\", \"gt\", 5) %}{{ x.name }}{% endfor %}",
+        )
+        .unwrap();
 
         let mut item1 = VObject::new();
         item1.insert(VString::from("name"), Value::from("Heavy"));
@@ -1136,7 +1267,11 @@ mod tests {
 
     #[test]
     fn test_rejectattr_truthy() {
-        let t = Template::parse("test", "{% for x in items | rejectattr(\"draft\") %}{{ x.name }}{% endfor %}").unwrap();
+        let t = Template::parse(
+            "test",
+            "{% for x in items | rejectattr(\"draft\") %}{{ x.name }}{% endfor %}",
+        )
+        .unwrap();
 
         let mut item1 = VObject::new();
         item1.insert(VString::from("name"), Value::from("Published"));
@@ -1179,7 +1314,8 @@ mod tests {
         item3.insert(VString::from("name"), Value::from("Banana"));
         item3.insert(VString::from("category"), Value::from("fruit"));
 
-        let items: Value = VArray::from_iter([Value::from(item1), Value::from(item2), Value::from(item3)]).into();
+        let items: Value =
+            VArray::from_iter([Value::from(item1), Value::from(item2), Value::from(item3)]).into();
         let result = t.render_with([("items", items)]).unwrap();
         // Order is preserved: fruit first (Apple, Banana), then vegetable (Carrot)
         assert_eq!(result, "[fruit:AppleBanana][vegetable:Carrot]");
@@ -1197,7 +1333,8 @@ mod tests {
         let mut item3 = VObject::new();
         item3.insert(VString::from("cat"), Value::from("A"));
 
-        let items: Value = VArray::from_iter([Value::from(item1), Value::from(item2), Value::from(item3)]).into();
+        let items: Value =
+            VArray::from_iter([Value::from(item1), Value::from(item2), Value::from(item3)]).into();
         let result = t.render_with([("items", items)]).unwrap();
         assert_eq!(result, "A:2;B:1;");
     }
@@ -1205,7 +1342,11 @@ mod tests {
     #[test]
     fn test_filters_chained() {
         // Test chaining multiple new filters
-        let t = Template::parse("test", "{{ items | selectattr(\"active\") | map(attribute=\"name\") | join(\", \") }}").unwrap();
+        let t = Template::parse(
+            "test",
+            "{{ items | selectattr(\"active\") | map(attribute=\"name\") | join(\", \") }}",
+        )
+        .unwrap();
 
         let mut item1 = VObject::new();
         item1.insert(VString::from("name"), Value::from("Alice"));
@@ -1217,7 +1358,8 @@ mod tests {
         item3.insert(VString::from("name"), Value::from("Carol"));
         item3.insert(VString::from("active"), Value::from(true));
 
-        let items: Value = VArray::from_iter([Value::from(item1), Value::from(item2), Value::from(item3)]).into();
+        let items: Value =
+            VArray::from_iter([Value::from(item1), Value::from(item2), Value::from(item3)]).into();
         assert_eq!(t.render_with([("items", items)]).unwrap(), "Alice, Carol");
     }
 
@@ -1225,7 +1367,10 @@ mod tests {
     fn test_unclosed_expression_error() {
         // Unclosed {{ should produce a parse error
         let result = Template::parse("test", "Hello {{ name");
-        assert!(result.is_err(), "Unclosed expression should produce parse error");
+        assert!(
+            result.is_err(),
+            "Unclosed expression should produce parse error"
+        );
     }
 
     #[test]
@@ -1243,6 +1388,9 @@ mod tests {
 </html>"#;
         let result = Template::parse("index.html", template);
         println!("\n\nResult: {:?}\n\n", result);
-        assert!(result.is_err(), "Template with unclosed expression should produce parse error");
+        assert!(
+            result.is_err(),
+            "Template with unclosed expression should produce parse error"
+        );
     }
 }

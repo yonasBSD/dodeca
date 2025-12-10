@@ -100,7 +100,7 @@ pub fn rewrite_urls_in_html(html: &str, path_map: &HashMap<String, String>) -> S
 /// Adds `data-dead` attribute to `<a>` tags with internal hrefs that don't exist in known_routes.
 /// Returns (modified_html, had_dead_links) tuple.
 pub fn mark_dead_links(html: &str, known_routes: &HashSet<String>) -> (String, bool) {
-    use lol_html::{element, rewrite_str, RewriteStrSettings};
+    use lol_html::{RewriteStrSettings, element, rewrite_str};
     use std::cell::Cell;
 
     let had_dead = Cell::new(false);

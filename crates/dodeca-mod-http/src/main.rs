@@ -42,10 +42,14 @@ mod tunnel;
 fn create_plugin_dispatcher(
     tunnel_service: Arc<tunnel::TcpTunnelImpl<PluginTransport>>,
     tracing_config: TracingConfigImpl,
-) -> impl Fn(u32, u32, Vec<u8>) -> Pin<Box<dyn std::future::Future<Output = Result<Frame, RpcError>> + Send>>
-       + Send
-       + Sync
-       + 'static {
+) -> impl Fn(
+    u32,
+    u32,
+    Vec<u8>,
+) -> Pin<Box<dyn std::future::Future<Output = Result<Frame, RpcError>> + Send>>
++ Send
++ Sync
++ 'static {
     move |_channel_id, method_id, payload| {
         let tunnel_service = tunnel_service.clone();
         let tracing_config = tracing_config.clone();
@@ -55,7 +59,13 @@ fn create_plugin_dispatcher(
             let result = config_server.dispatch(method_id, &payload).await;
 
             // If not "unknown method_id", return the result
-            if !matches!(&result, Err(RpcError::Status { code: rapace::ErrorCode::Unimplemented, .. })) {
+            if !matches!(
+                &result,
+                Err(RpcError::Status {
+                    code: rapace::ErrorCode::Unimplemented,
+                    ..
+                })
+            ) {
                 return result;
             }
 
@@ -89,9 +99,9 @@ impl PluginContext {
 
 /// SHM configuration - must match host's config
 const SHM_CONFIG: ShmSessionConfig = ShmSessionConfig {
-    ring_capacity: 256,    // 256 descriptors in flight
-    slot_size: 65536,      // 64KB per slot (fits most HTML pages)
-    slot_count: 128,       // 128 slots = 8MB total
+    ring_capacity: 256, // 256 descriptors in flight
+    slot_size: 65536,   // 64KB per slot (fits most HTML pages)
+    slot_count: 128,    // 128 slots = 8MB total
 };
 
 /// CLI arguments
@@ -154,9 +164,7 @@ async fn main() -> Result<()> {
     // Create TracingConfig implementation for host to push filter updates
     let tracing_config = TracingConfigImpl::new(shared_filter);
 
-    tracing_subscriber::registry()
-        .with(tracing_layer)
-        .init();
+    tracing_subscriber::registry().with(tracing_layer).init();
 
     tracing::info!("Connected to host via SHM");
 
@@ -214,10 +222,7 @@ fn build_router(ctx: Arc<PluginContext>) -> axum::Router {
     const CACHE_NO_CACHE: &str = "no-cache, no-store, must-revalidate";
 
     /// Handle content requests by calling host via RPC
-    async fn content_handler(
-        State(ctx): State<Arc<PluginContext>>,
-        request: Request,
-    ) -> Response {
+    async fn content_handler(State(ctx): State<Arc<PluginContext>>, request: Request) -> Response {
         let path = request.uri().path().to_string();
         let client = ctx.content_client();
 
@@ -235,52 +240,40 @@ fn build_router(ctx: Arc<PluginContext>) -> axum::Router {
 
         // Convert ServeContent to HTTP response
         match content {
-            ServeContent::Html { content, route: _ } => {
-                Response::builder()
-                    .status(StatusCode::OK)
-                    .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
-                    .header(header::CACHE_CONTROL, CACHE_NO_CACHE)
-                    .body(Body::from(content))
-                    .unwrap()
-            }
-            ServeContent::Css { content } => {
-                Response::builder()
-                    .status(StatusCode::OK)
-                    .header(header::CONTENT_TYPE, "text/css; charset=utf-8")
-                    .header(header::CACHE_CONTROL, CACHE_IMMUTABLE)
-                    .body(Body::from(content))
-                    .unwrap()
-            }
-            ServeContent::Static { content, mime } => {
-                Response::builder()
-                    .status(StatusCode::OK)
-                    .header(header::CONTENT_TYPE, mime)
-                    .header(header::CACHE_CONTROL, CACHE_IMMUTABLE)
-                    .body(Body::from(content))
-                    .unwrap()
-            }
-            ServeContent::StaticNoCache { content, mime } => {
-                Response::builder()
-                    .status(StatusCode::OK)
-                    .header(header::CONTENT_TYPE, mime)
-                    .header(header::CACHE_CONTROL, CACHE_NO_CACHE)
-                    .body(Body::from(content))
-                    .unwrap()
-            }
-            ServeContent::Search { content, mime } => {
-                Response::builder()
-                    .status(StatusCode::OK)
-                    .header(header::CONTENT_TYPE, mime)
-                    .body(Body::from(content))
-                    .unwrap()
-            }
-            ServeContent::NotFound { similar_routes: _ } => {
-                Response::builder()
-                    .status(StatusCode::NOT_FOUND)
-                    .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
-                    .body(Body::from("Not Found"))
-                    .unwrap()
-            }
+            ServeContent::Html { content, route: _ } => Response::builder()
+                .status(StatusCode::OK)
+                .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+                .header(header::CACHE_CONTROL, CACHE_NO_CACHE)
+                .body(Body::from(content))
+                .unwrap(),
+            ServeContent::Css { content } => Response::builder()
+                .status(StatusCode::OK)
+                .header(header::CONTENT_TYPE, "text/css; charset=utf-8")
+                .header(header::CACHE_CONTROL, CACHE_IMMUTABLE)
+                .body(Body::from(content))
+                .unwrap(),
+            ServeContent::Static { content, mime } => Response::builder()
+                .status(StatusCode::OK)
+                .header(header::CONTENT_TYPE, mime)
+                .header(header::CACHE_CONTROL, CACHE_IMMUTABLE)
+                .body(Body::from(content))
+                .unwrap(),
+            ServeContent::StaticNoCache { content, mime } => Response::builder()
+                .status(StatusCode::OK)
+                .header(header::CONTENT_TYPE, mime)
+                .header(header::CACHE_CONTROL, CACHE_NO_CACHE)
+                .body(Body::from(content))
+                .unwrap(),
+            ServeContent::Search { content, mime } => Response::builder()
+                .status(StatusCode::OK)
+                .header(header::CONTENT_TYPE, mime)
+                .body(Body::from(content))
+                .unwrap(),
+            ServeContent::NotFound { similar_routes: _ } => Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+                .body(Body::from("Not Found"))
+                .unwrap(),
         }
     }
 
@@ -293,10 +286,9 @@ fn build_router(ctx: Arc<PluginContext>) -> axum::Router {
         let mut response = next.run(request).await;
 
         // Add header to identify this is served by the plugin
-        response.headers_mut().insert(
-            "x-served-by",
-            "dodeca-mod-http".parse().unwrap(),
-        );
+        response
+            .headers_mut()
+            .insert("x-served-by", "dodeca-mod-http".parse().unwrap());
 
         let status = response.status().as_u16();
         let latency_ms = start.elapsed().as_secs_f64() * 1000.0;

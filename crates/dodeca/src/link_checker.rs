@@ -7,7 +7,7 @@
 //! per-domain rate limiting internally.
 
 use crate::db::ExternalLinkStatus;
-use crate::plugins::{check_urls_plugin, has_linkcheck_plugin, CheckOptions};
+use crate::plugins::{CheckOptions, check_urls_plugin, has_linkcheck_plugin};
 use crate::types::Route;
 use chrono::NaiveDate;
 use regex::Regex;
@@ -249,12 +249,11 @@ pub async fn check_external_links(
         };
 
         // The plugin uses blocking HTTP, so wrap in spawn_blocking
-        let plugin_result = tokio::task::spawn_blocking(move || {
-            check_urls_plugin(urls_to_check, plugin_options)
-        })
-        .await
-        .ok()
-        .flatten();
+        let plugin_result =
+            tokio::task::spawn_blocking(move || check_urls_plugin(urls_to_check, plugin_options))
+                .await
+                .ok()
+                .flatten();
 
         if let Some(result) = plugin_result {
             // Map results back to URLs and update cache
@@ -263,7 +262,10 @@ pub async fn check_external_links(
                     "ok" => ExternalLinkStatus::Ok,
                     "error" => ExternalLinkStatus::Error(status.code.unwrap_or(0)),
                     "failed" => ExternalLinkStatus::Failed(
-                        status.message.clone().unwrap_or_else(|| "unknown error".to_string()),
+                        status
+                            .message
+                            .clone()
+                            .unwrap_or_else(|| "unknown error".to_string()),
                     ),
                     "skipped" => continue, // Don't cache or report skipped URLs
                     _ => ExternalLinkStatus::Failed(format!("unknown status: {}", status.status)),
@@ -355,13 +357,15 @@ fn check_internal_link(
     if path.is_empty() {
         // Validate fragment against current page's headings
         if let Some(frag) = fragment
-            && !frag.is_empty() {
-                let source_key = source_route.as_str().to_string();
-                if let Some(ids) = heading_ids.get(&source_key)
-                    && !ids.contains(frag) {
-                        return Some(format!("anchor '#{frag}' not found on page"));
-                    }
+            && !frag.is_empty()
+        {
+            let source_key = source_route.as_str().to_string();
+            if let Some(ids) = heading_ids.get(&source_key)
+                && !ids.contains(frag)
+            {
+                return Some(format!("anchor '#{frag}' not found on page"));
             }
+        }
         return None;
     }
 
@@ -399,23 +403,25 @@ fn check_internal_link(
 
     // Route exists - now validate fragment if present
     if let Some(frag) = fragment
-        && !frag.is_empty() {
-            // Find the target route's heading IDs (try with/without trailing slash)
-            let target_ids = heading_ids
-                .get(&target_route)
-                .or_else(|| heading_ids.get(target_route.trim_end_matches('/')))
-                .or_else(|| {
-                    let with_slash = format!("{}/", target_route.trim_end_matches('/'));
-                    heading_ids.get(&with_slash)
-                });
+        && !frag.is_empty()
+    {
+        // Find the target route's heading IDs (try with/without trailing slash)
+        let target_ids = heading_ids
+            .get(&target_route)
+            .or_else(|| heading_ids.get(target_route.trim_end_matches('/')))
+            .or_else(|| {
+                let with_slash = format!("{}/", target_route.trim_end_matches('/'));
+                heading_ids.get(&with_slash)
+            });
 
-            if let Some(ids) = target_ids
-                && !ids.contains(frag) {
-                    return Some(format!("anchor '#{frag}' not found on target page"));
-                }
-            // If we can't find heading IDs for the target, don't fail
-            // (could be a static file or external page)
+        if let Some(ids) = target_ids
+            && !ids.contains(frag)
+        {
+            return Some(format!("anchor '#{frag}' not found on target page"));
         }
+        // If we can't find heading IDs for the target, don't fail
+        // (could be a static file or external page)
+    }
 
     None
 }

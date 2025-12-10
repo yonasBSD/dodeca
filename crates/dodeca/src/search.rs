@@ -4,7 +4,7 @@
 //! Works entirely in memory - no files need to be written to disk.
 
 use crate::db::{OutputFile, SiteOutput};
-use crate::plugins::{build_search_index_plugin, SearchPage};
+use crate::plugins::{SearchPage, build_search_index_plugin};
 use color_eyre::eyre::eyre;
 use std::collections::HashMap;
 

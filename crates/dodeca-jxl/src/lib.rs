@@ -2,7 +2,7 @@
 
 use facet::Facet;
 use jpegxl_rs::encode::EncoderFrame;
-use plugcard::{plugcard, PlugResult};
+use plugcard::{PlugResult, plugcard};
 
 plugcard::export_plugin!();
 
@@ -32,7 +32,8 @@ pub fn decode_jxl(data: Vec<u8>) -> PlugResult<DecodedImage> {
         pixels,
         width: metadata.width,
         height: metadata.height,
-        channels: metadata.num_color_channels as u8 + if metadata.has_alpha_channel { 1 } else { 0 },
+        channels: metadata.num_color_channels as u8
+            + if metadata.has_alpha_channel { 1 } else { 0 },
     })
 }
 

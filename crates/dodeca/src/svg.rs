@@ -60,6 +60,9 @@ mod tests {
         // Should preserve viewBox (case-sensitive)
         assert!(output.contains("viewBox"), "viewBox should be preserved");
         // Should still have the circle
-        assert!(output.contains("circle"), "circle element should be preserved");
+        assert!(
+            output.contains("circle"),
+            "circle element should be preserved"
+        );
     }
 }

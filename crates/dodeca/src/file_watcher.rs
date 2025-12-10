@@ -7,8 +7,8 @@
 
 use camino::{Utf8Path, Utf8PathBuf};
 use notify::{
-    event::{CreateKind, ModifyKind, RenameMode},
     EventKind, RecommendedWatcher, RecursiveMode, Watcher,
+    event::{CreateKind, ModifyKind, RenameMode},
 };
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -70,10 +70,19 @@ impl WatcherConfig {
     /// Get the relative path for a file within its category
     pub fn relative_path(&self, path: &Utf8Path) -> Option<Utf8PathBuf> {
         match self.categorize(path) {
-            PathCategory::Content => path.strip_prefix(&self.content_dir).ok().map(|p| p.to_owned()),
-            PathCategory::Template => path.strip_prefix(&self.templates_dir).ok().map(|p| p.to_owned()),
+            PathCategory::Content => path
+                .strip_prefix(&self.content_dir)
+                .ok()
+                .map(|p| p.to_owned()),
+            PathCategory::Template => path
+                .strip_prefix(&self.templates_dir)
+                .ok()
+                .map(|p| p.to_owned()),
             PathCategory::Sass => path.strip_prefix(&self.sass_dir).ok().map(|p| p.to_owned()),
-            PathCategory::Static => path.strip_prefix(&self.static_dir).ok().map(|p| p.to_owned()),
+            PathCategory::Static => path
+                .strip_prefix(&self.static_dir)
+                .ok()
+                .map(|p| p.to_owned()),
             PathCategory::Data => path.strip_prefix(&self.data_dir).ok().map(|p| p.to_owned()),
             PathCategory::Unknown => None,
         }
@@ -140,9 +149,10 @@ pub fn process_notify_event(
                         }
                     }
                 } else if should_watch_path(path, config)
-                    && let Ok(utf8) = Utf8PathBuf::from_path_buf(path.clone()) {
-                        events.push(FileEvent::Changed(utf8));
-                    }
+                    && let Ok(utf8) = Utf8PathBuf::from_path_buf(path.clone())
+                {
+                    events.push(FileEvent::Changed(utf8));
+                }
             }
         }
 
@@ -150,9 +160,10 @@ pub fn process_notify_event(
         EventKind::Modify(ModifyKind::Data(_)) | EventKind::Modify(ModifyKind::Any) => {
             for path in &event.paths {
                 if should_watch_path(path, config)
-                    && let Ok(utf8) = Utf8PathBuf::from_path_buf(path.clone()) {
-                        events.push(FileEvent::Changed(utf8));
-                    }
+                    && let Ok(utf8) = Utf8PathBuf::from_path_buf(path.clone())
+                {
+                    events.push(FileEvent::Changed(utf8));
+                }
             }
         }
 
@@ -163,9 +174,10 @@ pub fn process_notify_event(
                     // Old path - treat as deletion
                     for path in &event.paths {
                         if should_watch_path(path, config)
-                            && let Ok(utf8) = Utf8PathBuf::from_path_buf(path.clone()) {
-                                events.push(FileEvent::Removed(utf8));
-                            }
+                            && let Ok(utf8) = Utf8PathBuf::from_path_buf(path.clone())
+                        {
+                            events.push(FileEvent::Removed(utf8));
+                        }
                     }
                 }
                 RenameMode::To => {
@@ -180,9 +192,10 @@ pub fn process_notify_event(
                                 }
                             }
                         } else if should_watch_path(path, config)
-                            && let Ok(utf8) = Utf8PathBuf::from_path_buf(path.clone()) {
-                                events.push(FileEvent::Changed(utf8));
-                            }
+                            && let Ok(utf8) = Utf8PathBuf::from_path_buf(path.clone())
+                        {
+                            events.push(FileEvent::Changed(utf8));
+                        }
                     }
                 }
                 RenameMode::Any => {
@@ -199,15 +212,17 @@ pub fn process_notify_event(
                                     }
                                 }
                             } else if should_watch_path(path, config)
-                                && let Ok(utf8) = Utf8PathBuf::from_path_buf(path.clone()) {
-                                    events.push(FileEvent::Changed(utf8));
-                                }
+                                && let Ok(utf8) = Utf8PathBuf::from_path_buf(path.clone())
+                            {
+                                events.push(FileEvent::Changed(utf8));
+                            }
                         } else {
                             // File doesn't exist at this path - it's the source (old location)
                             if should_watch_path(path, config)
-                                && let Ok(utf8) = Utf8PathBuf::from_path_buf(path.clone()) {
-                                    events.push(FileEvent::Removed(utf8));
-                                }
+                                && let Ok(utf8) = Utf8PathBuf::from_path_buf(path.clone())
+                            {
+                                events.push(FileEvent::Removed(utf8));
+                            }
                         }
                     }
                 }
@@ -218,9 +233,10 @@ pub fn process_notify_event(
                         let to_path = &event.paths[1];
 
                         if should_watch_path(from_path, config)
-                            && let Ok(utf8) = Utf8PathBuf::from_path_buf(from_path.clone()) {
-                                events.push(FileEvent::Removed(utf8));
-                            }
+                            && let Ok(utf8) = Utf8PathBuf::from_path_buf(from_path.clone())
+                        {
+                            events.push(FileEvent::Removed(utf8));
+                        }
 
                         if to_path.is_dir() {
                             if let Ok(mut w) = watcher.lock() {
@@ -230,9 +246,10 @@ pub fn process_notify_event(
                                 }
                             }
                         } else if should_watch_path(to_path, config)
-                            && let Ok(utf8) = Utf8PathBuf::from_path_buf(to_path.clone()) {
-                                events.push(FileEvent::Changed(utf8));
-                            }
+                            && let Ok(utf8) = Utf8PathBuf::from_path_buf(to_path.clone())
+                        {
+                            events.push(FileEvent::Changed(utf8));
+                        }
                     }
                 }
                 _ => {}
@@ -243,9 +260,10 @@ pub fn process_notify_event(
         EventKind::Remove(_) => {
             for path in &event.paths {
                 if should_watch_path(path, config)
-                    && let Ok(utf8) = Utf8PathBuf::from_path_buf(path.clone()) {
-                        events.push(FileEvent::Removed(utf8));
-                    }
+                    && let Ok(utf8) = Utf8PathBuf::from_path_buf(path.clone())
+                {
+                    events.push(FileEvent::Removed(utf8));
+                }
             }
         }
 
@@ -348,10 +366,7 @@ mod tests {
             config.relative_path(Utf8Path::new("/project/static/fonts/Inter.woff2")),
             Some(Utf8PathBuf::from("fonts/Inter.woff2"))
         );
-        assert_eq!(
-            config.relative_path(Utf8Path::new("/other/file.txt")),
-            None
-        );
+        assert_eq!(config.relative_path(Utf8Path::new("/other/file.txt")), None);
     }
 
     #[test]
@@ -428,7 +443,8 @@ mod tests {
         let (tx, _rx) = std::sync::mpsc::channel();
         let watcher = notify::recommended_watcher(move |_res: notify::Result<notify::Event>| {
             let _ = tx.send(());
-        }).unwrap();
+        })
+        .unwrap();
         let watcher = Arc::new(Mutex::new(watcher));
 
         let event = notify::Event {
@@ -455,7 +471,8 @@ mod tests {
         let (tx, _rx) = std::sync::mpsc::channel();
         let watcher = notify::recommended_watcher(move |_res: notify::Result<notify::Event>| {
             let _ = tx.send(());
-        }).unwrap();
+        })
+        .unwrap();
         let watcher = Arc::new(Mutex::new(watcher));
 
         let event = notify::Event {
@@ -482,7 +499,8 @@ mod tests {
         let (tx, _rx) = std::sync::mpsc::channel();
         let watcher = notify::recommended_watcher(move |_res: notify::Result<notify::Event>| {
             let _ = tx.send(());
-        }).unwrap();
+        })
+        .unwrap();
         let watcher = Arc::new(Mutex::new(watcher));
 
         // Rename From = file moved away (like delete)
@@ -510,7 +528,8 @@ mod tests {
         let (tx, _rx) = std::sync::mpsc::channel();
         let watcher = notify::recommended_watcher(move |_res: notify::Result<notify::Event>| {
             let _ = tx.send(());
-        }).unwrap();
+        })
+        .unwrap();
         let watcher = Arc::new(Mutex::new(watcher));
 
         // Rename To = file moved here (like create)
@@ -538,7 +557,8 @@ mod tests {
         let (tx, _rx) = std::sync::mpsc::channel();
         let watcher = notify::recommended_watcher(move |_res: notify::Result<notify::Event>| {
             let _ = tx.send(());
-        }).unwrap();
+        })
+        .unwrap();
         let watcher = Arc::new(Mutex::new(watcher));
 
         // Rename Both = both paths in one event (inotify)

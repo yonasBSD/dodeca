@@ -4,7 +4,7 @@
 //! for 100+ programming languages via tree-sitter grammars.
 
 use facet::Facet;
-use plugcard::{plugcard, PlugResult};
+use plugcard::{PlugResult, plugcard};
 
 plugcard::export_plugin!();
 

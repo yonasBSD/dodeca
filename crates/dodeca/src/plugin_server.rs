@@ -16,8 +16,10 @@ use color_eyre::Result;
 use futures::stream::{self, StreamExt};
 use rapace::{Frame, RpcError};
 use rapace_testkit::RpcSession;
+use rapace_tracing::{
+    EventMeta, Field, SpanMeta, TracingConfigClient, TracingSink, TracingSinkServer,
+};
 use rapace_transport_shm::{ShmSession, ShmSessionConfig, ShmTransport};
-use rapace_tracing::{EventMeta, Field, SpanMeta, TracingConfigClient, TracingSink, TracingSinkServer};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::process::Command;
@@ -36,9 +38,9 @@ type HostTransport = ShmTransport;
 /// Using larger slots (64KB) and more of them (128) for content serving
 /// Total: 8MB shared memory segment
 const SHM_CONFIG: ShmSessionConfig = ShmSessionConfig {
-    ring_capacity: 256,    // 256 descriptors in flight
-    slot_size: 65536,      // 64KB per slot (fits most HTML pages)
-    slot_count: 128,       // 128 slots = 8MB total
+    ring_capacity: 256, // 256 descriptors in flight
+    slot_size: 65536,   // 64KB per slot (fits most HTML pages)
+    slot_count: 128,    // 128 slots = 8MB total
 };
 
 /// Buffer size for TCP reads
@@ -49,10 +51,14 @@ const CHUNK_SIZE: usize = 4096;
 /// This is used to integrate the content service with RpcSession's dispatcher.
 pub fn create_content_service_dispatcher(
     service: Arc<HostContentService>,
-) -> impl Fn(u32, u32, Vec<u8>) -> Pin<Box<dyn std::future::Future<Output = Result<Frame, RpcError>> + Send>>
-       + Send
-       + Sync
-       + 'static {
+) -> impl Fn(
+    u32,
+    u32,
+    Vec<u8>,
+) -> Pin<Box<dyn std::future::Future<Output = Result<Frame, RpcError>> + Send>>
++ Send
++ Sync
++ 'static {
     move |_channel_id, method_id, payload| {
         let service = service.clone();
         Box::pin(async move {
@@ -154,10 +160,14 @@ impl TracingSink for ForwardingTracingSink {
 pub fn create_combined_dispatcher(
     content_service: Arc<HostContentService>,
     tracing_sink: ForwardingTracingSink,
-) -> impl Fn(u32, u32, Vec<u8>) -> Pin<Box<dyn std::future::Future<Output = Result<Frame, RpcError>> + Send>>
-       + Send
-       + Sync
-       + 'static {
+) -> impl Fn(
+    u32,
+    u32,
+    Vec<u8>,
+) -> Pin<Box<dyn std::future::Future<Output = Result<Frame, RpcError>> + Send>>
++ Send
++ Sync
++ 'static {
     move |_channel_id, method_id, payload| {
         let content_service = content_service.clone();
         let tracing_sink = tracing_sink.clone();
@@ -167,7 +177,13 @@ pub fn create_combined_dispatcher(
             let result = tracing_server.dispatch(method_id, &payload).await;
 
             // If not "unknown method_id", return the result
-            if !matches!(&result, Err(RpcError::Status { code: rapace::ErrorCode::Unimplemented, .. })) {
+            if !matches!(
+                &result,
+                Err(RpcError::Status {
+                    code: rapace::ErrorCode::Unimplemented,
+                    ..
+                })
+            ) {
                 return result;
             }
 
@@ -224,7 +240,11 @@ pub async fn start_plugin_server_with_shutdown(
     // Create the SHM session (host side)
     let session = ShmSession::create_file(&shm_path, SHM_CONFIG)
         .map_err(|e| color_eyre::eyre::eyre!("Failed to create SHM: {:?}", e))?;
-    tracing::info!("SHM segment: {} ({}KB)", shm_path, SHM_CONFIG.slot_size * SHM_CONFIG.slot_count / 1024);
+    tracing::info!(
+        "SHM segment: {} ({}KB)",
+        shm_path,
+        SHM_CONFIG.slot_size * SHM_CONFIG.slot_count / 1024
+    );
 
     // Spawn the plugin process
     let mut child = Command::new(&plugin_path)
@@ -293,11 +313,8 @@ pub async fn start_plugin_server_with_shutdown(
     }
 
     // Merge all listeners into a single stream - when we drop it, ports are released
-    let mut accept_stream = stream::select_all(
-        listeners
-            .into_iter()
-            .map(|l| TcpListenerStream::new(l))
-    );
+    let mut accept_stream =
+        stream::select_all(listeners.into_iter().map(|l| TcpListenerStream::new(l)));
 
     // Accept browser connections and tunnel them to the plugin
     loop {

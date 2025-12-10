@@ -8,10 +8,10 @@
 //! - Full render (parse + evaluate)
 //! - Comparison with minijinja
 
-use divan::{black_box, Bencher};
-use dodeca::template::{Context, Engine, InMemoryLoader, VArray, VObject, VString, Value};
+use divan::{Bencher, black_box};
 use dodeca::template::lexer::Lexer;
 use dodeca::template::parser::Parser;
+use dodeca::template::{Context, Engine, InMemoryLoader, VArray, VObject, VString, Value};
 use facet_value::DestructuredRef;
 use std::sync::Arc;
 
@@ -140,7 +140,10 @@ fn loop_context() -> Context {
     let items: Vec<Value> = (0..10)
         .map(|i| {
             let mut item = VObject::new();
-            item.insert(VString::from("name"), Value::from(format!("Item {}", i).as_str()));
+            item.insert(
+                VString::from("name"),
+                Value::from(format!("Item {}", i).as_str()),
+            );
             item.insert(VString::from("price"), Value::from(i as f64 * 9.99));
             Value::from(item)
         })
@@ -157,7 +160,10 @@ fn complex_context() -> Context {
     page.insert(VString::from("title"), Value::from("My Blog Post"));
     page.insert(VString::from("date"), Value::from("2024-03-15"));
     page.insert(VString::from("author"), Value::from("John Doe"));
-    page.insert(VString::from("content"), Value::from("<p>This is the post content with <strong>HTML</strong>.</p>"));
+    page.insert(
+        VString::from("content"),
+        Value::from("<p>This is the post content with <strong>HTML</strong>.</p>"),
+    );
     page.insert(
         VString::from("tags"),
         Value::from(VArray::from_iter(vec![
@@ -204,12 +210,21 @@ fn complex_context() -> Context {
     let related_posts: Vec<Value> = (0..3)
         .map(|i| {
             let mut post = VObject::new();
-            post.insert(VString::from("url"), Value::from(format!("/posts/related-{}", i).as_str()));
-            post.insert(VString::from("title"), Value::from(format!("Related Post {}", i + 1).as_str()));
+            post.insert(
+                VString::from("url"),
+                Value::from(format!("/posts/related-{}", i).as_str()),
+            );
+            post.insert(
+                VString::from("title"),
+                Value::from(format!("Related Post {}", i + 1).as_str()),
+            );
             Value::from(post)
         })
         .collect();
-    ctx.set("related_posts", Value::from(VArray::from_iter(related_posts)));
+    ctx.set(
+        "related_posts",
+        Value::from(VArray::from_iter(related_posts)),
+    );
 
     ctx
 }
@@ -363,7 +378,8 @@ fn render_loop_scaling(bencher: Bencher, iterations: usize) {
     ctx.register_fn(
         "range",
         Box::new(move |args: &[Value], _kwargs: &[(String, Value)]| {
-            let n = args.first()
+            let n = args
+                .first()
                 .and_then(|v| {
                     if let DestructuredRef::Number(num) = v.destructure_ref() {
                         num.to_i64()
@@ -373,7 +389,7 @@ fn render_loop_scaling(bencher: Bencher, iterations: usize) {
                 })
                 .unwrap_or(0) as usize;
             Ok(Value::from(VArray::from_iter(
-                (0..n).map(|i| Value::from(i as i64))
+                (0..n).map(|i| Value::from(i as i64)),
             )))
         }),
     );
@@ -392,7 +408,7 @@ fn render_loop_scaling(bencher: Bencher, iterations: usize) {
 
 mod minijinja_comparison {
     use super::*;
-    use minijinja::{context, Environment, Value as MiniValue};
+    use minijinja::{Environment, Value as MiniValue, context};
 
     // Helper to create minijinja context equivalent to simple_context()
     fn mj_simple_context() -> MiniValue {

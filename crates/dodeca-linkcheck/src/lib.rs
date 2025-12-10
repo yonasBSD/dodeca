@@ -4,7 +4,7 @@
 //! Implements per-domain rate limiting to avoid hammering servers.
 
 use facet::Facet;
-use plugcard::{plugcard, PlugResult};
+use plugcard::{PlugResult, plugcard};
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 use url::Url;
@@ -24,19 +24,35 @@ pub struct LinkStatus {
 
 impl LinkStatus {
     pub fn ok() -> Self {
-        Self { status: "ok".to_string(), code: None, message: None }
+        Self {
+            status: "ok".to_string(),
+            code: None,
+            message: None,
+        }
     }
 
     pub fn error(code: u16) -> Self {
-        Self { status: "error".to_string(), code: Some(code), message: None }
+        Self {
+            status: "error".to_string(),
+            code: Some(code),
+            message: None,
+        }
     }
 
     pub fn failed(msg: String) -> Self {
-        Self { status: "failed".to_string(), code: None, message: Some(msg) }
+        Self {
+            status: "failed".to_string(),
+            code: None,
+            message: Some(msg),
+        }
     }
 
     pub fn skipped() -> Self {
-        Self { status: "skipped".to_string(), code: None, message: None }
+        Self {
+            status: "skipped".to_string(),
+            code: None,
+            message: None,
+        }
     }
 }
 
