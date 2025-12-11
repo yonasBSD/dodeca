@@ -2,17 +2,20 @@
 name = "dodeca-minify"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.91"
 description = "HTML minification plugin for dodeca"
 license = "MIT OR Apache-2.0"
 publish = false
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "arborium-header.html"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 plugcard = { path = "../plugcard" }
-facet = { git = "https://github.com/facet-rs/facet" }
+facet = "0.32.2"
 linkme = "0.3"
 
 # HTML minification

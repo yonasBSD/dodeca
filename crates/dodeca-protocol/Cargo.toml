@@ -2,10 +2,13 @@
 name = "dodeca-protocol"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.91"
 description = "Shared protocol types for dodeca devtools"
 publish = false
 
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "arborium-header.html"]
+
 [dependencies]
-facet = { git = "https://github.com/facet-rs/facet" }
-facet-postcard = { git = "https://github.com/facet-rs/facet", features = ["alloc"] }
+facet = "0.32.2"
+facet-postcard = { version = "0.32.2", features = ["alloc"] }

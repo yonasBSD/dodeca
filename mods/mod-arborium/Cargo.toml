@@ -2,7 +2,7 @@
 name = "mod-arborium"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.91"
 description = "Syntax highlighting plugin for dodeca using rapace"
 license = "MIT OR Apache-2.0"
 publish = false
@@ -13,9 +13,9 @@ path = "src/main.rs"
 
 [dependencies]
 # RPC framework
-rapace = { git = "https://github.com/bearcove/rapace" }
-rapace-transport-shm = { git = "https://github.com/bearcove/rapace" }
-rapace-tracing = { git = "https://github.com/bearcove/rapace" }
+rapace = "0.1.1"
+rapace-transport-shm = "0.1.1"
+rapace-tracing = "0.1.1"
 
 # Syntax highlighting with tree-sitter
 arborium = { version = "0.700", features = [

@@ -2,9 +2,12 @@
 name = "dodeca-devtools"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.91"
 description = "Dioxus-powered devtools overlay for dodeca"
 publish = false
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "arborium-header.html"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]

@@ -7,6 +7,9 @@ description = "Shared configuration types for dodeca code execution"
 license = "MIT OR Apache-2.0"
 publish = false
 
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "arborium-header.html"]
+
 [dependencies]
-facet = { git = "https://github.com/facet-rs/facet" }
-facet-kdl = { git = "https://github.com/facet-rs/facet" }
+facet = "0.32.2"
+facet-kdl = "0.32.2"

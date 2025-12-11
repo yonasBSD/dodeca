@@ -6,6 +6,9 @@ rust-version = "1.91"
 description = "WASM client for dodeca live reload - applies DOM patches"
 publish = false
 
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "arborium-header.html"]
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 

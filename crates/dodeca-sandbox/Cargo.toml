@@ -7,6 +7,9 @@ description = "Cross-platform process sandboxing for dodeca"
 license = "MIT OR Apache-2.0"
 publish = false
 
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "arborium-header.html"]
+
 [dependencies]
 thiserror = "2"
 tracing = "0.1"

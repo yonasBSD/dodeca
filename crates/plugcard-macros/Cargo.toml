@@ -2,13 +2,16 @@
 name = "plugcard-macros"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.91"
 description = "Proc macros for plugcard plugin system"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/bearcove/plugcard"
 homepage = "https://github.com/bearcove/plugcard"
 keywords = ["plugin", "ffi", "proc-macro"]
 categories = ["development-tools::procedural-macro-helpers"]
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "arborium-header.html"]
 
 [lib]
 proc-macro = true

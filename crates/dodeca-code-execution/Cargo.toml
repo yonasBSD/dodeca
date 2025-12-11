@@ -7,14 +7,17 @@ description = "Code sample execution plugin for dodeca"
 license = "MIT OR Apache-2.0"
 publish = false
 
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "arborium-header.html"]
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 plugcard = { path = "../plugcard" }
 dodeca-code-execution-types = { path = "../dodeca-code-execution-types" }
-facet = { git = "https://github.com/facet-rs/facet" }
-facet-json = { git = "https://github.com/facet-rs/facet" }
+facet = "0.32.2"
+facet-json = "0.32.2"
 linkme = "0.3"
 pulldown-cmark = "0.13"
 # TODO: Replace blake3 with facet-compatible hashing crate

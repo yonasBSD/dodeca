@@ -5,10 +5,13 @@ edition = "2024"
 rust-version = "1.91"
 publish = false
 
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "arborium-header.html"]
+
 [dependencies]
 # CI generation
-facet = { git = "https://github.com/facet-rs/facet", features = ["indexmap"] }
-facet-yaml = { git = "https://github.com/facet-rs/facet" }
+facet = { version = "0.32.2", features = ["indexmap"] }
+facet-yaml = "0.32.2"
 indexmap = "2"
 structstruck = "0.4"
 

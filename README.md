@@ -18,100 +18,77 @@ the affected queries re-run. First page load builds what's needed; subsequent re
 are instant.
 
 **Custom template engine.** Dodeca includes its own Jinja-like template engine. This gives
-us precise error messages with source locations, lets us track template dependencies for
-accurate incremental rebuilds, and avoids a serde dependency by working directly with native types.
+you the power of a real language (conditionals, loops, variable interpolation) without
+the complexity of learning a new syntax. The engine includes rich diagnostics with
+line/column information for template errors.
 
-**Cache-busting everywhere.** All assets get content-hashed URLs (`style.a1b2c3d4.css`), so
-you can serve them with aggressive cache headers. This happens in dev too, so you catch
-any URL rewriting issues before production.
+**Plugin architecture.** Dodeca's plugin system (via the `plugcard` crate) allows extending
+the build pipeline without modifying the core. Image optimization, CSS processing, syntax
+highlighting, and more can be plugged in independently.
 
-**Minification by default.** HTML is minified with [minify-html](https://crates.io/crates/minify-html),
-SVGs are optimized with [oxvg](https://crates.io/crates/oxvg). Both run in dev mode because
-the performance cost is negligible and you want to catch issues early.
+## Getting Started
 
-**Responsive image pipeline.** Images are automatically converted to JPEG-XL and WebP at
-multiple breakpoints (320px to 1920px). Each image also gets a [thumbhash](https://evanw.github.io/thumbhash/)—a
-tiny ~28 byte placeholder that displays instantly while the real image loads.
-
-## Features
-
-- incremental builds via [Salsa](https://salsa-rs.github.io/salsa/)
-- font subsetting (only include glyphs actually used)
-- live-reload dev server
-- Jinja-like template engine with macros and imports
-- Sass/SCSS compilation
-- search indexing via Pagefind
-- internal and external link checking
-- responsive images (JPEG-XL + WebP with thumbhash placeholders)
-- cache-busted asset URLs (in dev and prod)
-- HTML minification
-- SVG optimization
-- Zola-style `@/` internal links
-- markdown extensions (tables, footnotes, strikethrough)
-- automatic table of contents generation
-
-## Installation
-
-### Homebrew
-
-```bash
-brew install bearcove/tap/dodeca
-```
-
-### macOS / Linux
-
-```bash
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/bearcove/dodeca/releases/latest/download/dodeca-installer.sh | sh
-```
-
-### Windows
-
-```powershell
-powershell -ExecutionPolicy Bypass -c "irm https://github.com/bearcove/dodeca/releases/latest/download/dodeca-installer.ps1 | iex"
-```
-
-### With cargo-binstall
-
-```bash
-cargo binstall dodeca
-```
-
-See [cargo-binstall](https://crates.io/crates/cargo-binstall) for installation.
-
-### From source
+Install dodeca:
 
 ```bash
 cargo install dodeca
 ```
 
-## Usage
-
-### Development
+Create a new site:
 
 ```bash
+ddc init my-site
+cd my-site
 ddc serve
 ```
 
-Starts a live-reload dev server with a TUI showing real-time build progress. Pages are built on-demand—only what you request gets built, making startup instant even for large sites.
+This starts a development server at `http://localhost:8080` with live reload.
 
-Press `p` to expose your local server to a public address (via bore.pub), handy for testing on other devices or sharing previews.
+## Key Features
 
-### Production build
+- **Incremental builds**: Only affected files are re-processed on changes
+- **Cache-busted URLs**: Assets get unique names based on content hash
+- **Image optimization**: Built-in image processing with responsive variants
+- **Font subsetting**: Automatically subset fonts to used characters
+- **HTML minification**: Minify HTML in production builds
+- **Template engine**: Powerful, easy-to-learn Jinja-like templates
+- **Code execution**: Execute code samples and capture output
+- **Link checking**: Verify all links in your site
+- **Extensible**: Plugin system for custom transformations
+
+## Structure
+
+The dodeca workspace includes:
+
+- **dodeca**: Main SSG binary (`ddc` CLI)
+- **gingembre**: Template engine with rich diagnostics
+- **plugcard**: Plugin system for extending the build pipeline
+- **dodeca-\***: Individual plugins for various transformations
+- **livereload-client**: WASM client for live reload in development
+
+## Development
+
+Build everything:
 
 ```bash
-ddc build
+cargo xtask build
 ```
 
-Builds your entire site to the output directory. Thanks to Salsa's incremental computation and a content-addressed storage (CAS) system, subsequent builds only recompute what actually changed.
+Run tests:
 
-## Configuration
-
-Create `.config/dodeca.kdl`:
-
-```kdl
-content "docs/content"
-output "docs/public"
+```bash
+cargo test --workspace
 ```
+
+Build the documentation:
+
+```bash
+cargo doc --workspace --no-deps --open
+```
+
+## Contributing
+
+Contributions are welcome! Please open issues and pull requests on GitHub.
 
 ## Sponsors
 
@@ -147,6 +124,8 @@ Thanks to all individual sponsors:
 <img src="./static/sponsors-v3/depot-light.svg" height="40" alt="Depot">
 </picture>
 </a> </p>
+
+...without whom this work could not exist.
 
 ## License
 

@@ -4,15 +4,18 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.91"
 
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "arborium-header.html"]
+
 [dependencies]
 # RPC framework - main crate
-rapace = { git = "https://github.com/bearcove/rapace" }
+rapace = "0.1.1"
 
 # Serialization
-facet = { git = "https://github.com/facet-rs/facet" }
+facet = "0.32.2"
 
 # RpcSession + helpers for manual RPC clients
-rapace-testkit = { git = "https://github.com/bearcove/rapace" }
+rapace-testkit = "0.1.1"
 
 # Re-export types from dodeca-protocol
 dodeca-protocol = { path = "../../crates/dodeca-protocol" }
