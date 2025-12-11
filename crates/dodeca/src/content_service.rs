@@ -88,11 +88,6 @@ fn guess_mime(path: &str) -> &'static str {
         "font/ttf"
     } else if path.ends_with(".otf") {
         "font/otf"
-    } else if path.ends_with(".pf_meta")
-        || path.ends_with(".pf_fragment")
-        || path.ends_with(".pf_index")
-    {
-        "application/octet-stream"
     } else {
         "application/octet-stream"
     }

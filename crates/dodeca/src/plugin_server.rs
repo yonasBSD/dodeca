@@ -133,6 +133,7 @@ impl TracingSink for ForwardingTracingSink {
 ///
 /// Method IDs are now globally unique hashes, so we try each dispatcher in turn.
 /// The correct one will succeed, the others will return "unknown method_id".
+#[allow(clippy::type_complexity)]
 pub fn create_combined_dispatcher(
     content_service: Arc<HostContentService>,
     tracing_sink: ForwardingTracingSink,

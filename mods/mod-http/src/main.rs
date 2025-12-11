@@ -38,6 +38,7 @@ mod tunnel;
 ///
 /// Method IDs are globally unique hashes, so we try each service in turn.
 /// The correct one will succeed, the others will return "unknown method_id".
+#[allow(clippy::type_complexity)]
 fn create_plugin_dispatcher(
     tunnel_service: Arc<tunnel::TcpTunnelImpl<PluginTransport>>,
     tracing_config: TracingConfigImpl,
