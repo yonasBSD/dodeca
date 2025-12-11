@@ -8,7 +8,8 @@ use facet::Facet;
 use facet_kdl as kdl;
 
 /// Code execution configuration
-#[derive(Debug, Clone, Facet)]
+#[derive(Debug, Clone, Default, Facet)]
+#[facet(traits(Default))]
 pub struct CodeExecutionConfig {
     /// Enable/disable code execution
     #[facet(kdl::property, default)]
@@ -35,21 +36,9 @@ pub struct CodeExecutionConfig {
     pub rust: RustConfig,
 }
 
-impl Default for CodeExecutionConfig {
-    fn default() -> Self {
-        Self {
-            enabled: Some(true),
-            fail_on_error: Some(false),
-            timeout_secs: Some(30),
-            cache_dir: Some(".cache/code-execution".to_string()),
-            dependencies: DependenciesConfig::default(),
-            rust: RustConfig::default(),
-        }
-    }
-}
-
 /// Dependencies configuration
 #[derive(Debug, Clone, Default, Facet)]
+#[facet(traits(Default))]
 pub struct DependenciesConfig {
     /// List of dependency specifications
     #[facet(kdl::children, default)]
@@ -205,7 +194,8 @@ impl DependencySpec {
 }
 
 /// Rust-specific configuration
-#[derive(Debug, Clone, Facet)]
+#[derive(Debug, Clone, Default, Facet)]
+#[facet(traits(Default))]
 pub struct RustConfig {
     /// Cargo command
     #[facet(kdl::property, default)]
@@ -230,23 +220,6 @@ pub struct RustConfig {
     /// Show output in build
     #[facet(kdl::property, default)]
     pub show_output: Option<bool>,
-}
-
-impl Default for RustConfig {
-    fn default() -> Self {
-        Self {
-            command: Some("cargo".to_string()),
-            args: Some(vec![
-                "run".to_string(),
-                "--quiet".to_string(),
-                "--release".to_string(),
-            ]),
-            extension: Some("rs".to_string()),
-            prepare_code: Some(true),
-            auto_imports: Some(vec!["use std::collections::HashMap;".to_string()]),
-            show_output: Some(false),
-        }
-    }
 }
 
 /// Default dependencies for Rust code samples
