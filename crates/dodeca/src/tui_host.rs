@@ -6,14 +6,14 @@
 use std::pin::Pin;
 use std::sync::Arc;
 
-use eyre::Result;
-use futures::StreamExt;
 use cell_tui_proto::{
     BindMode, BuildProgress, CommandResult, EventKind, LogEvent, LogLevel, ServerCommand,
     ServerStatus, TaskProgress, TaskStatus, TuiHost, TuiHostServer,
 };
-use rapace::{Frame, RpcError};
+use eyre::Result;
+use futures::StreamExt;
 use rapace::Streaming;
+use rapace::{Frame, RpcError};
 use tokio::sync::{broadcast, mpsc, watch};
 use tokio_stream::wrappers::{BroadcastStream, errors::BroadcastStreamRecvError};
 
@@ -289,9 +289,9 @@ pub fn create_tui_dispatcher(
     u32,
     Vec<u8>,
 ) -> Pin<Box<dyn std::future::Future<Output = Result<Frame, RpcError>> + Send>>
-       + Send
-       + Sync
-       + 'static {
++ Send
++ Sync
++ 'static {
     move |_channel_id, method_id, payload| {
         let wrapper = TuiHostWrapper(tui_host.clone());
         Box::pin(async move {
@@ -314,15 +314,15 @@ pub async fn start_tui_cell(
     let tui_host_arc = Arc::new(tui_host);
     let dispatcher = create_tui_dispatcher(tui_host_arc);
 
-    let (_rpc_session, mut child) = crate::cells::spawn_cell_with_dispatcher(
-        "ddc-cell-tui",
-        dispatcher,
-    )
-    .ok_or_else(|| eyre::eyre!(
-        "Failed to spawn TUI cell. Make sure ddc-cell-tui is built and in the cell path."
-    ))?;
+    let (_rpc_session, mut child) =
+        crate::cells::spawn_cell_with_dispatcher("ddc-cell-tui", dispatcher).ok_or_else(|| {
+            eyre::eyre!(
+                "Failed to spawn TUI cell. Make sure ddc-cell-tui is built and in the cell path."
+            )
+        })?;
 
     // Wait for TUI process to exit or shutdown signal
+    #[allow(clippy::never_loop)] // Loop is for select! - exits on either branch
     loop {
         tokio::select! {
             status = child.wait() => {

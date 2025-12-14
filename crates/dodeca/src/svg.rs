@@ -23,6 +23,7 @@ pub async fn optimize_svg(svg_content: &str) -> Option<String> {
 }
 
 #[cfg(test)]
+#[allow(clippy::disallowed_methods)]
 mod tests {
     use super::*;
 

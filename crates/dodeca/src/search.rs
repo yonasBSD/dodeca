@@ -3,10 +3,10 @@
 //! Builds a full-text search index from HTML content.
 //! Works entirely in memory - no files need to be written to disk.
 
-use crate::db::{OutputFile, SiteOutput};
 use crate::cells::build_search_index_plugin;
-use eyre::eyre;
+use crate::db::{OutputFile, SiteOutput};
 use cell_pagefind_proto::SearchPage;
+use eyre::eyre;
 use std::collections::HashMap;
 
 /// Search index files (path -> content)
@@ -38,6 +38,7 @@ pub fn collect_search_pages(output: &SiteOutput) -> Vec<SearchPage> {
 /// Build a search index from site output (one-shot, for build mode)
 ///
 /// Creates a current-thread runtime to call the async plugin RPC.
+#[allow(clippy::disallowed_methods)]
 pub fn build_search_index(output: &SiteOutput) -> eyre::Result<SearchFiles> {
     let pages = collect_search_pages(output);
 

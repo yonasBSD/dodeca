@@ -20,11 +20,13 @@ use cell_fonts_proto::{FontAnalysis, FontProcessorClient, FontResult, SubsetFont
 use cell_html_diff_proto::{DiffInput, DiffResult, HtmlDiffResult, HtmlDifferClient};
 use cell_html_proto::HtmlProcessorClient;
 use cell_http_proto::TcpTunnelClient;
-use cell_markdown_proto::{MarkdownProcessorClient, MarkdownResult, ParseResult, FrontmatterResult};
 use cell_image_proto::{ImageProcessorClient, ImageResult, ResizeInput, ThumbhashInput};
 use cell_js_proto::{JsProcessorClient, JsResult, JsRewriteInput};
 use cell_jxl_proto::{JXLEncodeInput, JXLProcessorClient, JXLResult};
 use cell_linkcheck_proto::{LinkCheckInput, LinkCheckResult, LinkCheckerClient, LinkStatus};
+use cell_markdown_proto::{
+    FrontmatterResult, MarkdownProcessorClient, MarkdownResult, ParseResult,
+};
 use cell_minify_proto::{MinifierClient, MinifyResult};
 use cell_pagefind_proto::{
     SearchFile, SearchIndexInput, SearchIndexResult, SearchIndexerClient, SearchPage,
@@ -32,10 +34,8 @@ use cell_pagefind_proto::{
 use cell_sass_proto::{SassCompilerClient, SassInput, SassResult};
 use cell_svgo_proto::{SvgoOptimizerClient, SvgoResult};
 use cell_webp_proto::{WebPEncodeInput, WebPProcessorClient, WebPResult};
+use rapace::transport::shm::{HubConfig, HubHost, HubHostPeerTransport, close_peer_fd};
 use rapace::{Frame, RpcSession};
-use rapace::transport::shm::{
-    close_peer_fd, HubConfig, HubHost, HubHostPeerTransport,
-};
 use rapace_tracing::{TracingConfigClient, TracingSinkServer};
 use std::collections::HashMap;
 use std::env;
@@ -120,7 +120,9 @@ fn register_peer_diag(
 /// Get a cell's RPC session by binary name (e.g., "ddc-cell-http").
 /// Returns None if the cell is not loaded.
 pub fn get_cell_session(name: &str) -> Option<Arc<RpcSession<HubHostPeerTransport>>> {
-    PEER_DIAG_INFO.read().ok()?
+    PEER_DIAG_INFO
+        .read()
+        .ok()?
         .iter()
         .find(|info| info.name == name)
         .map(|info| info.rpc_session.clone())
@@ -145,8 +147,13 @@ pub fn spawn_cell_with_dispatcher<D>(
     dispatcher: D,
 ) -> Option<(Arc<RpcSession<HubHostPeerTransport>>, tokio::process::Child)>
 where
-    D: Fn(u32, u32, Vec<u8>) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Frame, rapace::RpcError>> + Send>>
-        + Send
+    D: Fn(
+            u32,
+            u32,
+            Vec<u8>,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = Result<Frame, rapace::RpcError>> + Send>,
+        > + Send
         + Sync
         + 'static,
 {
@@ -236,7 +243,12 @@ where
         });
     }
 
-    info!("launched {} from {} (peer_id={})", binary_name, path.display(), peer_id);
+    info!(
+        "launched {} from {} (peer_id={})",
+        binary_name,
+        path.display(),
+        peer_id
+    );
 
     Some((rpc_session, child))
 }
@@ -509,12 +521,22 @@ impl PluginRegistry {
                     }
                 }
                 // Reclaim peer slots when plugin dies
-                hub_for_cleanup.allocator().reclaim_peer_slots(peer_id as u32);
-                info!("{} plugin exited, reclaimed slots for peer {}", plugin_label, peer_id);
+                hub_for_cleanup
+                    .allocator()
+                    .reclaim_peer_slots(peer_id as u32);
+                info!(
+                    "{} plugin exited, reclaimed slots for peer {}",
+                    plugin_label, peer_id
+                );
             });
         }
 
-        info!("launched {} plugin from {} (peer_id={})", binary_name, path.display(), peer_id);
+        info!(
+            "launched {} plugin from {} (peer_id={})",
+            binary_name,
+            path.display(),
+            peer_id
+        );
 
         Some(SpawnedPlugin {
             peer_id,
@@ -532,7 +554,11 @@ impl PluginRegistry {
             return;
         }
 
-        info!("waiting for {} peers to register: {:?}", peer_ids.len(), peer_ids);
+        info!(
+            "waiting for {} peers to register: {:?}",
+            peer_ids.len(),
+            peer_ids
+        );
 
         // Spin-poll for peer registration without blocking
         // On current_thread runtime, std::thread::sleep would block ALL tasks
@@ -542,7 +568,11 @@ impl PluginRegistry {
         loop {
             let all_active = peer_ids.iter().all(|&id| hub.is_peer_active(id));
             if all_active {
-                info!("all {} peers registered after {:?}", peer_ids.len(), start.elapsed());
+                info!(
+                    "all {} peers registered after {:?}",
+                    peer_ids.len(),
+                    start.elapsed()
+                );
                 return;
             }
 
@@ -1101,7 +1131,10 @@ pub async fn analyze_fonts_plugin(html: &str, css: &str) -> FontAnalysis {
 /// # Panics
 /// Panics if the fonts plugin is not loaded.
 pub async fn extract_css_from_html_plugin(html: &str) -> String {
-    tracing::debug!("[HOST] extract_css_from_html_plugin: START (html_len={})", html.len());
+    tracing::debug!(
+        "[HOST] extract_css_from_html_plugin: START (html_len={})",
+        html.len()
+    );
     let plugin = plugins()
         .fonts
         .as_ref()
@@ -1110,7 +1143,10 @@ pub async fn extract_css_from_html_plugin(html: &str) -> String {
     tracing::debug!("[HOST] extract_css_from_html_plugin: calling RPC...");
     match plugin.extract_css_from_html(html.to_string()).await {
         Ok(FontResult::CssSuccess { css }) => {
-            tracing::debug!("[HOST] extract_css_from_html_plugin: SUCCESS (css_len={})", css.len());
+            tracing::debug!(
+                "[HOST] extract_css_from_html_plugin: SUCCESS (css_len={})",
+                css.len()
+            );
             css
         }
         Ok(FontResult::Error { message }) => panic!("extract css plugin error: {}", message),
@@ -1321,13 +1357,19 @@ pub async fn execute_code_samples_plugin(
 > {
     let plugin = plugins().code_execution.as_ref()?;
 
-    tracing::debug!("[HOST] execute_code_samples_plugin: START (num_samples={})", samples.len());
+    tracing::debug!(
+        "[HOST] execute_code_samples_plugin: START (num_samples={})",
+        samples.len()
+    );
     let input = ExecuteSamplesInput { samples, config };
 
     tracing::debug!("[HOST] execute_code_samples_plugin: calling RPC...");
     match plugin.execute_code_samples(input).await {
         Ok(CodeExecutionResult::ExecuteSuccess { output }) => {
-            tracing::debug!("[HOST] execute_code_samples_plugin: SUCCESS (num_results={})", output.results.len());
+            tracing::debug!(
+                "[HOST] execute_code_samples_plugin: SUCCESS (num_results={})",
+                output.results.len()
+            );
             Some(output.results)
         }
         Ok(CodeExecutionResult::Error { message }) => {
@@ -1382,7 +1424,10 @@ pub async fn rewrite_urls_in_html_plugin(
 ) -> Option<String> {
     let plugin = plugins().html.as_ref()?;
 
-    match plugin.rewrite_urls(html.to_string(), path_map.clone()).await {
+    match plugin
+        .rewrite_urls(html.to_string(), path_map.clone())
+        .await
+    {
         Ok(cell_html_proto::HtmlResult::Success { html }) => Some(html),
         Ok(cell_html_proto::HtmlResult::SuccessWithFlag { html, .. }) => Some(html),
         Ok(cell_html_proto::HtmlResult::Error { message }) => {
@@ -1406,7 +1451,10 @@ pub async fn mark_dead_links_plugin(
 ) -> Option<(String, bool)> {
     let plugin = plugins().html.as_ref()?;
 
-    match plugin.mark_dead_links(html.to_string(), known_routes.clone()).await {
+    match plugin
+        .mark_dead_links(html.to_string(), known_routes.clone())
+        .await
+    {
         Ok(cell_html_proto::HtmlResult::SuccessWithFlag { html, flag }) => Some((html, flag)),
         Ok(cell_html_proto::HtmlResult::Success { html }) => Some((html, false)),
         Ok(cell_html_proto::HtmlResult::Error { message }) => {
@@ -1430,7 +1478,10 @@ pub async fn inject_build_info_plugin(
 ) -> Option<(String, bool)> {
     let plugin = plugins().html.as_ref()?;
 
-    match plugin.inject_build_info(html.to_string(), code_metadata.clone()).await {
+    match plugin
+        .inject_build_info(html.to_string(), code_metadata.clone())
+        .await
+    {
         Ok(cell_html_proto::HtmlResult::SuccessWithFlag { html, flag }) => Some((html, flag)),
         Ok(cell_html_proto::HtmlResult::Success { html }) => Some((html, false)),
         Ok(cell_html_proto::HtmlResult::Error { message }) => {
@@ -1515,14 +1566,17 @@ pub async fn parse_and_render_markdown_cell(content: &str) -> Option<ParsedMarkd
     let plugin = plugins().markdown.as_ref()?;
 
     match plugin.parse_and_render(content.to_string()).await {
-        Ok(ParseResult::Success { frontmatter, html, headings, code_blocks }) => {
-            Some(ParsedMarkdown {
-                frontmatter,
-                html,
-                headings,
-                code_blocks,
-            })
-        }
+        Ok(ParseResult::Success {
+            frontmatter,
+            html,
+            headings,
+            code_blocks,
+        }) => Some(ParsedMarkdown {
+            frontmatter,
+            html,
+            headings,
+            code_blocks,
+        }),
         Ok(ParseResult::Error { message }) => {
             warn!("markdown parse_and_render plugin error: {}", message);
             None
@@ -1536,13 +1590,21 @@ pub async fn parse_and_render_markdown_cell(content: &str) -> Option<ParsedMarkd
 
 /// Render markdown to HTML using the plugin (without frontmatter parsing).
 #[tracing::instrument(level = "debug", skip(markdown), fields(markdown_len = markdown.len()))]
-pub async fn render_markdown_cell(markdown: &str) -> Option<(String, Vec<cell_markdown_proto::Heading>, Vec<cell_markdown_proto::CodeBlock>)> {
+async fn _render_markdown_cell(
+    markdown: &str,
+) -> Option<(
+    String,
+    Vec<cell_markdown_proto::Heading>,
+    Vec<cell_markdown_proto::CodeBlock>,
+)> {
     let plugin = plugins().markdown.as_ref()?;
 
     match plugin.render_markdown(markdown.to_string()).await {
-        Ok(MarkdownResult::Success { html, headings, code_blocks }) => {
-            Some((html, headings, code_blocks))
-        }
+        Ok(MarkdownResult::Success {
+            html,
+            headings,
+            code_blocks,
+        }) => Some((html, headings, code_blocks)),
         Ok(MarkdownResult::Error { message }) => {
             warn!("markdown render plugin error: {}", message);
             None
@@ -1556,13 +1618,13 @@ pub async fn render_markdown_cell(markdown: &str) -> Option<(String, Vec<cell_ma
 
 /// Parse frontmatter from content using the plugin.
 #[tracing::instrument(level = "debug", skip(content), fields(content_len = content.len()))]
-pub async fn parse_frontmatter_cell(content: &str) -> Option<(cell_markdown_proto::Frontmatter, String)> {
+async fn _parse_frontmatter_cell(
+    content: &str,
+) -> Option<(cell_markdown_proto::Frontmatter, String)> {
     let plugin = plugins().markdown.as_ref()?;
 
     match plugin.parse_frontmatter(content.to_string()).await {
-        Ok(FrontmatterResult::Success { frontmatter, body }) => {
-            Some((frontmatter, body))
-        }
+        Ok(FrontmatterResult::Success { frontmatter, body }) => Some((frontmatter, body)),
         Ok(FrontmatterResult::Error { message }) => {
             warn!("markdown parse_frontmatter plugin error: {}", message);
             None

@@ -230,6 +230,7 @@ pub fn transform_images_to_picture(
 }
 
 #[cfg(test)]
+#[allow(clippy::disallowed_methods)]
 mod tests {
     use super::*;
 
@@ -260,7 +261,8 @@ mod tests {
         routes.insert("/exists".to_string());
         routes.insert("/also-exists/".to_string());
 
-        let html = r#"<html><body><a href="/exists">Good</a><a href="/missing">Bad</a></body></html>"#;
+        let html =
+            r#"<html><body><a href="/exists">Good</a><a href="/missing">Bad</a></body></html>"#;
         let (result, had_dead) = mark_dead_links(html, &routes).await;
 
         // Note: These tests require the html plugin to be running

@@ -2,6 +2,8 @@
 
 mod cache_bust;
 mod cas;
+mod cell_server;
+mod cells;
 mod config;
 mod content_service;
 mod data;
@@ -11,8 +13,6 @@ mod file_watcher;
 mod image;
 mod link_checker;
 mod logging;
-mod cell_server;
-mod cells;
 mod queries;
 mod render;
 mod search;
@@ -284,6 +284,7 @@ fn resolve_dirs(
 }
 
 #[tokio::main]
+#[allow(clippy::disallowed_methods)] // Entry point - block_on is in #[tokio::main] macro
 async fn main() -> Result<()> {
     // Install SIGUSR1 handler for debugging (dumps stack traces)
     dodeca_debug::install_sigusr1_handler("ddc");
@@ -841,11 +842,11 @@ pub async fn build(
     let static_vec: Vec<_> = ctx.static_files.values().copied().collect();
     let data_vec: Vec<_> = ctx.data_files.values().copied().collect();
 
-    SourceRegistry::set(&mut ctx.db, source_vec)?;
-    TemplateRegistry::set(&mut ctx.db, template_vec)?;
-    SassRegistry::set(&mut ctx.db, sass_vec)?;
-    StaticRegistry::set(&mut ctx.db, static_vec)?;
-    DataRegistry::set(&mut ctx.db, data_vec)?;
+    SourceRegistry::set(&ctx.db, source_vec)?;
+    TemplateRegistry::set(&ctx.db, template_vec)?;
+    SassRegistry::set(&ctx.db, sass_vec)?;
+    StaticRegistry::set(&ctx.db, static_vec)?;
+    DataRegistry::set(&ctx.db, data_vec)?;
 
     // Update progress: parsing phase
     if let Some(ref p) = progress {
@@ -969,7 +970,7 @@ pub async fn build(
             }
             OutputFile::Static { path, content } => {
                 let dest = output_dir.join(path.as_str());
-                if store.write_if_changed(&dest, &content)? {
+                if store.write_if_changed(&dest, content)? {
                     stats.static_written += 1;
                 } else {
                     stats.static_skipped += 1;
@@ -1152,11 +1153,11 @@ async fn build_with_mini_tui(
     let static_vec: Vec<_> = ctx.static_files.values().copied().collect();
     let data_vec: Vec<_> = ctx.data_files.values().copied().collect();
 
-    SourceRegistry::set(&mut ctx.db, source_vec)?;
-    TemplateRegistry::set(&mut ctx.db, template_vec)?;
-    SassRegistry::set(&mut ctx.db, sass_vec)?;
-    StaticRegistry::set(&mut ctx.db, static_vec)?;
-    DataRegistry::set(&mut ctx.db, data_vec)?;
+    SourceRegistry::set(&ctx.db, source_vec)?;
+    TemplateRegistry::set(&ctx.db, template_vec)?;
+    SassRegistry::set(&ctx.db, sass_vec)?;
+    StaticRegistry::set(&ctx.db, static_vec)?;
+    DataRegistry::set(&ctx.db, data_vec)?;
 
     println!("{} Building...", "→".cyan());
 
@@ -1268,14 +1269,13 @@ async fn build_with_mini_tui(
             }
             OutputFile::Static { path, content } => {
                 let dest = output_dir.join(path.as_str());
-                if store.write_if_changed(&dest, &content)? {
+                if store.write_if_changed(&dest, content)? {
                     written += 1;
                 } else {
                     skipped += 1;
                 }
             }
         }
-
     }
 
     // Check links
@@ -1283,8 +1283,8 @@ async fn build_with_mini_tui(
 
     let pages = site_output.files.iter().filter_map(|f| match f {
         OutputFile::Html { route, content } => Some(link_checker::Page {
-            route: &route,
-            html: &content,
+            route,
+            html: content,
         }),
         _ => None,
     });
@@ -1310,18 +1310,10 @@ async fn build_with_mini_tui(
             known_routes,
             heading_ids: std::collections::HashMap::new(), // Not needed for external links
         };
-        std::thread::spawn(move || {
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .unwrap();
-            rt.block_on(async {
-                let mut cache = std::collections::HashMap::new();
-                link_checker::check_external_links(&ext, &mut cache, today, &external_options).await
-            })
-        })
-        .join()
-        .map_err(|_| eyre!("external link check thread panicked"))?
+        {
+            let mut cache = std::collections::HashMap::new();
+            link_checker::check_external_links(&ext, &mut cache, today, &external_options).await
+        }
     };
 
     link_result.external_checked = external_checked;
@@ -1451,7 +1443,7 @@ fn handle_file_changed(
                     .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                     .map(|d| d.as_secs() as i64)
                     .unwrap_or(0);
-                let mut db = server.db.lock().unwrap();
+                let db = server.db.lock().unwrap();
                 let mut sources = SourceRegistry::sources(&*db)
                     .ok()
                     .flatten()
@@ -1477,12 +1469,12 @@ fn handle_file_changed(
                     sources.push(source);
                     println!("  {} Added new source: {}", "+".green(), relative);
                 }
-                SourceRegistry::set(&mut *db, sources).expect("failed to set sources");
+                SourceRegistry::set(&*db, sources).expect("failed to set sources");
             }
         }
         PathCategory::Template => {
             if let Ok(content) = fs::read_to_string(path) {
-                let mut db = server.db.lock().unwrap();
+                let db = server.db.lock().unwrap();
                 let mut templates = TemplateRegistry::templates(&*db)
                     .ok()
                     .flatten()
@@ -1505,12 +1497,12 @@ fn handle_file_changed(
                     templates.push(template);
                     println!("  {} Added new template: {}", "+".green(), relative);
                 }
-                TemplateRegistry::set(&mut *db, templates).expect("failed to set templates");
+                TemplateRegistry::set(&*db, templates).expect("failed to set templates");
             }
         }
         PathCategory::Sass => {
             if let Ok(content) = fs::read_to_string(path) {
-                let mut db = server.db.lock().unwrap();
+                let db = server.db.lock().unwrap();
                 let mut sass_files = SassRegistry::files(&*db).ok().flatten().unwrap_or_default();
                 let relative_str = relative.to_string();
                 let sass_path = SassPath::new(relative_str.clone());
@@ -1530,7 +1522,7 @@ fn handle_file_changed(
                     sass_files.push(sass);
                     println!("  {} Added new sass: {}", "+".green(), relative);
                 }
-                SassRegistry::set(&mut *db, sass_files).expect("failed to set sass files");
+                SassRegistry::set(&*db, sass_files).expect("failed to set sass files");
             }
         }
         PathCategory::Static => {
@@ -1539,7 +1531,7 @@ fn handle_file_changed(
                 if content.is_empty() {
                     return;
                 }
-                let mut db = server.db.lock().unwrap();
+                let db = server.db.lock().unwrap();
                 let mut static_files = StaticRegistry::files(&*db)
                     .ok()
                     .flatten()
@@ -1562,12 +1554,12 @@ fn handle_file_changed(
                     static_files.push(static_file);
                     println!("  {} Added new static file: {}", "+".green(), relative);
                 }
-                StaticRegistry::set(&mut *db, static_files).expect("failed to set static files");
+                StaticRegistry::set(&*db, static_files).expect("failed to set static files");
             }
         }
         PathCategory::Data => {
             if let Ok(content) = fs::read_to_string(path) {
-                let mut db = server.db.lock().unwrap();
+                let db = server.db.lock().unwrap();
                 let mut data_files = DataRegistry::files(&*db).ok().flatten().unwrap_or_default();
                 let relative_str = relative.to_string();
                 let data_path = DataPath::new(relative_str.clone());
@@ -1587,7 +1579,7 @@ fn handle_file_changed(
                     data_files.push(data_file);
                     println!("  {} Added new data file: {}", "+".green(), relative);
                 }
-                DataRegistry::set(&mut *db, data_files).expect("failed to set data files");
+                DataRegistry::set(&*db, data_files).expect("failed to set data files");
             }
         }
         PathCategory::Unknown => (), // Unknown files don't need picante updates
@@ -1612,7 +1604,7 @@ fn handle_file_removed(
 
     match category {
         PathCategory::Content => {
-            let mut db = server.db.lock().unwrap();
+            let db = server.db.lock().unwrap();
             let mut sources = SourceRegistry::sources(&*db)
                 .ok()
                 .flatten()
@@ -1624,11 +1616,11 @@ fn handle_file_removed(
                     .unwrap_or(false)
             }) {
                 sources.remove(pos);
-                SourceRegistry::set(&mut *db, sources).expect("failed to set sources");
+                SourceRegistry::set(&*db, sources).expect("failed to set sources");
             }
         }
         PathCategory::Template => {
-            let mut db = server.db.lock().unwrap();
+            let db = server.db.lock().unwrap();
             let mut templates = TemplateRegistry::templates(&*db)
                 .ok()
                 .flatten()
@@ -1640,11 +1632,11 @@ fn handle_file_removed(
                     .unwrap_or(false)
             }) {
                 templates.remove(pos);
-                TemplateRegistry::set(&mut *db, templates).expect("failed to set templates");
+                TemplateRegistry::set(&*db, templates).expect("failed to set templates");
             }
         }
         PathCategory::Sass => {
-            let mut db = server.db.lock().unwrap();
+            let db = server.db.lock().unwrap();
             let mut sass_files = SassRegistry::files(&*db).ok().flatten().unwrap_or_default();
             if let Some(pos) = sass_files.iter().position(|s| {
                 s.path(&*db)
@@ -1653,11 +1645,11 @@ fn handle_file_removed(
                     .unwrap_or(false)
             }) {
                 sass_files.remove(pos);
-                SassRegistry::set(&mut *db, sass_files).expect("failed to set sass files");
+                SassRegistry::set(&*db, sass_files).expect("failed to set sass files");
             }
         }
         PathCategory::Static => {
-            let mut db = server.db.lock().unwrap();
+            let db = server.db.lock().unwrap();
             let mut static_files = StaticRegistry::files(&*db)
                 .ok()
                 .flatten()
@@ -1669,11 +1661,11 @@ fn handle_file_removed(
                     .unwrap_or(false)
             }) {
                 static_files.remove(pos);
-                StaticRegistry::set(&mut *db, static_files).expect("failed to set static files");
+                StaticRegistry::set(&*db, static_files).expect("failed to set static files");
             }
         }
         PathCategory::Data => {
-            let mut db = server.db.lock().unwrap();
+            let db = server.db.lock().unwrap();
             let mut data_files = DataRegistry::files(&*db).ok().flatten().unwrap_or_default();
             if let Some(pos) = data_files.iter().position(|d| {
                 d.path(&*db)
@@ -1682,7 +1674,7 @@ fn handle_file_removed(
                     .unwrap_or(false)
             }) {
                 data_files.remove(pos);
-                DataRegistry::set(&mut *db, data_files).expect("failed to set data files");
+                DataRegistry::set(&*db, data_files).expect("failed to set data files");
             }
         }
         PathCategory::Unknown => {}
@@ -2116,6 +2108,7 @@ async fn serve_plain(
 ///
 /// NOTE: This function creates its own tokio runtime because it's called from
 /// std::thread::spawn (the search indexer has !Send types that can't cross tokio task boundaries).
+#[allow(clippy::disallowed_methods)] // Needs own runtime - called from std::thread::spawn
 fn rebuild_search_for_serve(server: &serve::SiteServer) -> Result<search::SearchFiles> {
     // Create a new runtime for this thread (we're called from std::thread::spawn)
     let rt = tokio::runtime::Builder::new_current_thread()
@@ -2123,11 +2116,12 @@ fn rebuild_search_for_serve(server: &serve::SiteServer) -> Result<search::Search
         .build()
         .map_err(|e| eyre!("failed to create runtime: {e}"))?;
 
+    #[allow(clippy::await_holding_lock)] // Intentional - creating snapshot while holding lock
     rt.block_on(async {
         // Snapshot pattern: lock, snapshot, release, then query the snapshot
         let snapshot = {
             let db = server.db.lock().map_err(|_| eyre!("db lock poisoned"))?;
-            db::DatabaseSnapshot::from_database(&*db).await
+            db::DatabaseSnapshot::from_database(&db).await
         };
 
         // Build the site (picante will cache/reuse unchanged computations)
@@ -2143,10 +2137,8 @@ fn rebuild_search_for_serve(server: &serve::SiteServer) -> Result<search::Search
             .await
             .map_err(|e| eyre!("pagefind: {}", e))?;
 
-        let search_files: search::SearchFiles = files
-            .into_iter()
-            .map(|f| (f.path, f.contents))
-            .collect();
+        let search_files: search::SearchFiles =
+            files.into_iter().map(|f| (f.path, f.contents)).collect();
 
         Ok(search_files)
     })
@@ -2697,7 +2689,7 @@ async fn serve_with_tui(
                                                 })
                                                 .map(|d| d.as_secs() as i64)
                                                 .unwrap_or(0);
-                                            let mut db = server_for_watcher.db.lock().unwrap();
+                                            let db = server_for_watcher.db.lock().unwrap();
                                             let mut sources = SourceRegistry::sources(&*db)
                                                 .ok()
                                                 .flatten()
@@ -2732,7 +2724,7 @@ async fn serve_with_tui(
                                                     .expect("failed to create source file"),
                                                 );
                                             }
-                                            SourceRegistry::set(&mut *db, sources)
+                                            SourceRegistry::set(&*db, sources)
                                                 .expect("failed to set sources");
                                         }
                                     }
@@ -2741,7 +2733,7 @@ async fn serve_with_tui(
                                         path.strip_prefix(&templates_dir_for_watcher)
                                     {
                                         if let Ok(content) = fs::read_to_string(path) {
-                                            let mut db = server_for_watcher.db.lock().unwrap();
+                                            let db = server_for_watcher.db.lock().unwrap();
                                             let mut templates = TemplateRegistry::templates(&*db)
                                                 .ok()
                                                 .flatten()
@@ -2790,14 +2782,14 @@ async fn serve_with_tui(
                                                     .expect("failed to create template file"),
                                                 );
                                             }
-                                            TemplateRegistry::set(&mut *db, templates)
+                                            TemplateRegistry::set(&*db, templates)
                                                 .expect("failed to set templates");
                                         }
                                     }
                                 } else if ext == Some("scss") || ext == Some("sass") {
                                     if let Ok(relative) = path.strip_prefix(&sass_dir_for_watcher) {
                                         if let Ok(content) = fs::read_to_string(path) {
-                                            let mut db = server_for_watcher.db.lock().unwrap();
+                                            let db = server_for_watcher.db.lock().unwrap();
                                             let mut sass_files = SassRegistry::files(&*db)
                                                 .ok()
                                                 .flatten()
@@ -2822,7 +2814,7 @@ async fn serve_with_tui(
                                                         .expect("failed to create sass file"),
                                                 );
                                             }
-                                            SassRegistry::set(&mut *db, sass_files)
+                                            SassRegistry::set(&*db, sass_files)
                                                 .expect("failed to set sass files");
                                         }
                                     }
@@ -2835,7 +2827,7 @@ async fn serve_with_tui(
                                             if content.is_empty() {
                                                 continue;
                                             }
-                                            let mut db = server_for_watcher.db.lock().unwrap();
+                                            let db = server_for_watcher.db.lock().unwrap();
                                             let mut static_files = StaticRegistry::files(&*db)
                                                 .ok()
                                                 .flatten()
@@ -2866,7 +2858,7 @@ async fn serve_with_tui(
                                                         .expect("failed to create static file"),
                                                 );
                                             }
-                                            StaticRegistry::set(&mut *db, static_files)
+                                            StaticRegistry::set(&*db, static_files)
                                                 .expect("failed to set static files");
                                         }
                                     }

@@ -5,6 +5,8 @@
 //! Uses Unix socket FD passing to hand the listening socket to the server process,
 //! avoiding stdout parsing races and ensuring immediate readiness.
 
+#![allow(clippy::disallowed_methods)]
+
 use async_send_fd::AsyncSendFd;
 use regex::Regex;
 use reqwest::blocking::Client;

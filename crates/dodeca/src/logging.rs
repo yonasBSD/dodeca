@@ -209,7 +209,7 @@ impl FilterHandle {
     }
 
     /// Check if salsa debug is currently enabled
-    pub fn is_salsa_debug_enabled(&self) -> bool {
+    fn _is_salsa_debug_enabled(&self) -> bool {
         self.salsa_debug.load(Ordering::Relaxed)
     }
 

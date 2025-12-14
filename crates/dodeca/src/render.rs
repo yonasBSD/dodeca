@@ -1,9 +1,9 @@
+use crate::cells::inject_build_info_plugin;
 use crate::db::{
     CodeExecutionMetadata, CodeExecutionResult, DependencySourceInfo, Heading, Page, Section,
     SiteTree,
 };
 use crate::error_pages::render_error_page;
-use crate::cells::inject_build_info_plugin;
 use crate::template::{
     Context, DataResolver, Engine, InMemoryLoader, TemplateLoader, VArray, VObject, VString, Value,
     ValueExt,
@@ -322,7 +322,9 @@ const BUILD_INFO_POPUP_SCRIPT: &str = r##"<script>
 </script>"##;
 
 /// Convert internal CodeExecutionMetadata to plugin protocol type
-fn convert_metadata_to_proto(meta: &CodeExecutionMetadata) -> cell_html_proto::CodeExecutionMetadata {
+fn convert_metadata_to_proto(
+    meta: &CodeExecutionMetadata,
+) -> cell_html_proto::CodeExecutionMetadata {
     cell_html_proto::CodeExecutionMetadata {
         rustc_version: meta.rustc_version.clone(),
         cargo_version: meta.cargo_version.clone(),
@@ -345,9 +347,9 @@ fn convert_metadata_to_proto(meta: &CodeExecutionMetadata) -> cell_html_proto::C
                             commit: commit.clone(),
                         }
                     }
-                    DependencySourceInfo::Path { path } => cell_html_proto::DependencySource::Path {
-                        path: path.clone(),
-                    },
+                    DependencySourceInfo::Path { path } => {
+                        cell_html_proto::DependencySource::Path { path: path.clone() }
+                    }
                 },
             })
             .collect(),
@@ -1085,6 +1087,7 @@ fn route_to_path(route: &str) -> String {
 }
 
 #[cfg(test)]
+#[allow(clippy::disallowed_methods)]
 mod tests {
     use super::*;
     use crate::db::{

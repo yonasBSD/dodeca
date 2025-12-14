@@ -303,32 +303,32 @@ impl SiteServer {
     /// Update the source registry with a new list of sources
     /// This invalidates all queries that depend on sources
     pub fn set_sources(&self, sources: Vec<SourceFile>) {
-        let mut db = self.db.lock().unwrap();
-        SourceRegistry::set(&mut *db, sources).expect("failed to set sources");
+        let db = self.db.lock().unwrap();
+        SourceRegistry::set(&*db, sources).expect("failed to set sources");
     }
 
     /// Update the template registry with a new list of templates
     pub fn set_templates(&self, templates: Vec<TemplateFile>) {
-        let mut db = self.db.lock().unwrap();
-        TemplateRegistry::set(&mut *db, templates).expect("failed to set templates");
+        let db = self.db.lock().unwrap();
+        TemplateRegistry::set(&*db, templates).expect("failed to set templates");
     }
 
     /// Update the sass registry with a new list of sass files
     pub fn set_sass_files(&self, files: Vec<SassFile>) {
-        let mut db = self.db.lock().unwrap();
-        SassRegistry::set(&mut *db, files).expect("failed to set sass files");
+        let db = self.db.lock().unwrap();
+        SassRegistry::set(&*db, files).expect("failed to set sass files");
     }
 
     /// Update the static registry with a new list of static files
     pub fn set_static_files(&self, files: Vec<StaticFile>) {
-        let mut db = self.db.lock().unwrap();
-        StaticRegistry::set(&mut *db, files).expect("failed to set static files");
+        let db = self.db.lock().unwrap();
+        StaticRegistry::set(&*db, files).expect("failed to set static files");
     }
 
     /// Update the data registry with a new list of data files
     pub fn set_data_files(&self, files: Vec<DataFile>) {
-        let mut db = self.db.lock().unwrap();
-        DataRegistry::set(&mut *db, files).expect("failed to set data files");
+        let db = self.db.lock().unwrap();
+        DataRegistry::set(&*db, files).expect("failed to set data files");
     }
 
     /// Get a clone of the current sources (for modification)
@@ -525,9 +525,11 @@ impl SiteServer {
     fn get_current_css_path(&self) -> Option<String> {
         let snapshot = {
             let db = self.db.lock().ok()?;
-            futures::executor::block_on(DatabaseSnapshot::from_database(&*db))
+            futures::executor::block_on(DatabaseSnapshot::from_database(&db))
         };
-        let css = futures::executor::block_on(css_output(&snapshot)).ok().flatten()?;
+        let css = futures::executor::block_on(css_output(&snapshot))
+            .ok()
+            .flatten()?;
         Some(format!("/{}", css.cache_busted_path))
     }
 
@@ -581,7 +583,7 @@ impl SiteServer {
         // Note: from_database is async but doesn't await internally, so we use block_on
         let snapshot = {
             let db = self.db.lock().ok()?;
-            futures::executor::block_on(DatabaseSnapshot::from_database(&*db))
+            futures::executor::block_on(DatabaseSnapshot::from_database(&db))
         };
 
         // Get known routes for dead link detection (only in dev mode)
@@ -729,7 +731,8 @@ impl SiteServer {
                     );
                     if path == format!("/{jxl_cache_busted}") {
                         // NOW process the image (lazy!)
-                        if let Some(processed) = process_image(&snapshot, *file).await.ok().flatten()
+                        if let Some(processed) =
+                            process_image(&snapshot, *file).await.ok().flatten()
                             && let Some(variant) =
                                 processed.jxl_variants.iter().find(|v| v.width == width)
                         {
@@ -759,7 +762,8 @@ impl SiteServer {
                     );
                     if path == format!("/{webp_cache_busted}") {
                         // NOW process the image (lazy!)
-                        if let Some(processed) = process_image(&snapshot, *file).await.ok().flatten()
+                        if let Some(processed) =
+                            process_image(&snapshot, *file).await.ok().flatten()
                             && let Some(variant) =
                                 processed.webp_variants.iter().find(|v| v.width == width)
                         {
@@ -805,7 +809,7 @@ impl SiteServer {
                 Err(_) => return vec![],
             };
             // from_database is async but sync internally - use block_on to avoid Send issues
-            futures::executor::block_on(DatabaseSnapshot::from_database(&*db))
+            futures::executor::block_on(DatabaseSnapshot::from_database(&db))
         };
 
         let site_tree = match build_tree(&snapshot).await {
@@ -986,7 +990,7 @@ impl SiteServer {
         // Snapshot pattern: create snapshot while holding lock (sync), then release
         // Note: from_database is async but doesn't await internally, so we use block_on
         let snapshot = match self.db.lock() {
-            Ok(db) => futures::executor::block_on(DatabaseSnapshot::from_database(&*db)),
+            Ok(db) => futures::executor::block_on(DatabaseSnapshot::from_database(&db)),
             Err(_) => return Err("Failed to acquire database lock".to_string()),
         };
 
@@ -1122,7 +1126,7 @@ impl SiteServer {
     pub fn find_similar_routes(&self, path: &str) -> Vec<(String, String)> {
         // Snapshot pattern: create snapshot while holding lock (sync), then release
         let snapshot = match self.db.lock() {
-            Ok(db) => futures::executor::block_on(DatabaseSnapshot::from_database(&*db)),
+            Ok(db) => futures::executor::block_on(DatabaseSnapshot::from_database(&db)),
             Err(_) => return Vec::new(),
         };
 

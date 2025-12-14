@@ -7,8 +7,8 @@ use crate::db::{
 };
 use picante::PicanteResult;
 
-use crate::image::{self, InputFormat, OutputFormat, add_width_suffix};
 use crate::cells::{highlight_code, parse_and_render_markdown_cell};
+use crate::image::{self, InputFormat, OutputFormat, add_width_suffix};
 use crate::types::{HtmlBody, Route, SassContent, StaticPath, TemplateContent, Title};
 use crate::url_rewrite::rewrite_urls_in_css;
 use facet::Facet;
@@ -87,7 +87,7 @@ impl gingembre::TemplateLoader for SalsaTemplateLoader {
 /// Load a sass file's content - tracked for dependency tracking
 #[picante::tracked]
 pub async fn load_sass<DB: Db>(db: &DB, sass: SassFile) -> PicanteResult<SassContent> {
-    Ok(sass.content(db)?)
+    sass.content(db)
 }
 
 /// Load all sass files and return a map of path -> content
@@ -160,9 +160,7 @@ pub async fn list_data_file_keys<DB: Db>(db: &DB) -> PicanteResult<Vec<String>> 
     let files = DataRegistry::files(db)?.unwrap_or_default();
     let mut result = Vec::new();
     for f in files.iter() {
-        result.push(extract_filename_without_extension(
-            &f.path(db)?.as_str().to_string(),
-        ));
+        result.push(extract_filename_without_extension(f.path(db)?.as_str()));
     }
     Ok(result)
 }
@@ -283,6 +281,7 @@ pub struct SyncDataResolver {
 
 impl SyncDataResolver {
     /// Create a new resolver from pre-loaded data
+    #[allow(clippy::new_ret_no_self)] // Returns trait object Arc<dyn DataResolver>
     pub fn new(data: Value) -> Arc<dyn DataResolver> {
         Arc::new(Self { data })
     }

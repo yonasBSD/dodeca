@@ -193,7 +193,7 @@ impl LogEvent {
     }
 
     // Convenience constructors for specific event types
-    pub fn http(status: u16, message: impl Into<String>) -> Self {
+    fn _http(status: u16, message: impl Into<String>) -> Self {
         Self {
             level: if status >= 400 {
                 LogLevel::Warn
@@ -213,7 +213,7 @@ impl LogEvent {
         }
     }
 
-    pub fn reload(message: impl Into<String>) -> Self {
+    fn _reload(message: impl Into<String>) -> Self {
         Self {
             level: LogLevel::Info,
             kind: EventKind::Reload,
@@ -221,7 +221,7 @@ impl LogEvent {
         }
     }
 
-    pub fn patch(message: impl Into<String>) -> Self {
+    fn _patch(message: impl Into<String>) -> Self {
         Self {
             level: LogLevel::Info,
             kind: EventKind::Patch,

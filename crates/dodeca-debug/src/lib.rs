@@ -75,7 +75,10 @@ pub fn install_sigusr1_handler(process_name: &'static str) {
         libc::signal(libc::SIGUSR1, sigusr1_handler as libc::sighandler_t);
     }
 
-    eprintln!("[{}] SIGUSR1 handler installed (send signal to dump stack traces)", process_name);
+    eprintln!(
+        "[{}] SIGUSR1 handler installed (send signal to dump stack traces)",
+        process_name
+    );
 }
 
 // Static storage for process name (signal handlers can't capture environment)
@@ -120,19 +123,23 @@ extern "C" fn sigusr1_handler(_sig: libc::c_int) {
     eprintln!("{}\n", "=".repeat(60));
 
     // Forward SIGUSR1 to all registered child processes
-    if let Ok(pids) = CHILD_PIDS.read() {
-        if !pids.is_empty() {
-            eprintln!("[{process_name}] Forwarding SIGUSR1 to {} child processes: {:?}", pids.len(), *pids);
-            for &child_pid in pids.iter() {
-                unsafe {
-                    libc::kill(child_pid as i32, libc::SIGUSR1);
-                }
-            }
-            // Give children a moment to print their traces
-            // (not ideal in signal handler, but we're debugging)
+    if let Ok(pids) = CHILD_PIDS.read()
+        && !pids.is_empty()
+    {
+        eprintln!(
+            "[{process_name}] Forwarding SIGUSR1 to {} child processes: {:?}",
+            pids.len(),
+            *pids
+        );
+        for &child_pid in pids.iter() {
             unsafe {
-                libc::usleep(100_000); // 100ms
+                libc::kill(child_pid as i32, libc::SIGUSR1);
             }
+        }
+        // Give children a moment to print their traces
+        // (not ideal in signal handler, but we're debugging)
+        unsafe {
+            libc::usleep(100_000); // 100ms
         }
     }
 
@@ -184,23 +191,29 @@ extern "C" fn sigusr1_handler(_sig: libc::c_int) {
                 })
                 .unwrap_or_else(|| "?".to_string());
 
-            let top_frames: String = std::fs::read_to_string(format!("/proc/self/task/{tid}/stack"))
-                .map(|s| {
-                    s.lines()
-                        .take(3)
-                        .map(|l| {
-                            // Extract just the function name from kernel stack line
-                            // Format: "[<addr>] func_name+0x..."
-                            if let Some(start) = l.find(']') {
-                                l[start + 1..].trim().split('+').next().unwrap_or("?").trim()
-                            } else {
-                                l.trim()
-                            }
-                        })
-                        .collect::<Vec<_>>()
-                        .join(" → ")
-                })
-                .unwrap_or_else(|_| "?".to_string());
+            let top_frames: String =
+                std::fs::read_to_string(format!("/proc/self/task/{tid}/stack"))
+                    .map(|s| {
+                        s.lines()
+                            .take(3)
+                            .map(|l| {
+                                // Extract just the function name from kernel stack line
+                                // Format: "[<addr>] func_name+0x..."
+                                if let Some(start) = l.find(']') {
+                                    l[start + 1..]
+                                        .trim()
+                                        .split('+')
+                                        .next()
+                                        .unwrap_or("?")
+                                        .trim()
+                                } else {
+                                    l.trim()
+                                }
+                            })
+                            .collect::<Vec<_>>()
+                            .join(" → ")
+                    })
+                    .unwrap_or_else(|_| "?".to_string());
 
             eprintln!("  [{tid}] {name} ({state}): {top_frames}");
         }
@@ -208,12 +221,15 @@ extern "C" fn sigusr1_handler(_sig: libc::c_int) {
     }
 
     // Call registered diagnostic callbacks
-    if let Ok(callbacks) = DIAGNOSTIC_CALLBACKS.read() {
-        if !callbacks.is_empty() {
-            eprintln!("\n[{process_name}] Running {} diagnostic callback(s)...", callbacks.len());
-            for callback in callbacks.iter() {
-                callback();
-            }
+    if let Ok(callbacks) = DIAGNOSTIC_CALLBACKS.read()
+        && !callbacks.is_empty()
+    {
+        eprintln!(
+            "\n[{process_name}] Running {} diagnostic callback(s)...",
+            callbacks.len()
+        );
+        for callback in callbacks.iter() {
+            callback();
         }
     }
 
