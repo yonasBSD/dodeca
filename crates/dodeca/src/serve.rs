@@ -1320,45 +1320,45 @@ pub fn devtools_urls() -> (String, String) {
 /// Embedded JS snippets required by Dioxus WASM
 const SNIPPETS: &[(&str, &str)] = &[
     (
-        "snippets/dioxus-cli-config-e5fab7f8a0eb9fbb/inline0.js",
+        "snippets/dioxus-cli-config-c2775606adf80e62/inline0.js",
         include_str!(
-            "../../../crates/dodeca-devtools/pkg/snippets/dioxus-cli-config-e5fab7f8a0eb9fbb/inline0.js"
+            "../../../crates/dodeca-devtools/pkg/snippets/dioxus-cli-config-c2775606adf80e62/inline0.js"
         ),
     ),
     (
-        "snippets/dioxus-interpreter-js-267e64abc8a52eaa/inline0.js",
+        "snippets/dioxus-interpreter-js-ce7056f341163470/inline0.js",
         include_str!(
-            "../../../crates/dodeca-devtools/pkg/snippets/dioxus-interpreter-js-267e64abc8a52eaa/inline0.js"
+            "../../../crates/dodeca-devtools/pkg/snippets/dioxus-interpreter-js-ce7056f341163470/inline0.js"
         ),
     ),
     (
-        "snippets/dioxus-interpreter-js-267e64abc8a52eaa/src/js/patch_console.js",
+        "snippets/dioxus-interpreter-js-ce7056f341163470/src/js/patch_console.js",
         include_str!(
-            "../../../crates/dodeca-devtools/pkg/snippets/dioxus-interpreter-js-267e64abc8a52eaa/src/js/patch_console.js"
+            "../../../crates/dodeca-devtools/pkg/snippets/dioxus-interpreter-js-ce7056f341163470/src/js/patch_console.js"
         ),
     ),
     (
-        "snippets/dioxus-interpreter-js-267e64abc8a52eaa/src/js/hydrate.js",
+        "snippets/dioxus-interpreter-js-ce7056f341163470/src/js/hydrate.js",
         include_str!(
-            "../../../crates/dodeca-devtools/pkg/snippets/dioxus-interpreter-js-267e64abc8a52eaa/src/js/hydrate.js"
+            "../../../crates/dodeca-devtools/pkg/snippets/dioxus-interpreter-js-ce7056f341163470/src/js/hydrate.js"
         ),
     ),
     (
-        "snippets/dioxus-interpreter-js-267e64abc8a52eaa/src/js/set_attribute.js",
+        "snippets/dioxus-interpreter-js-ce7056f341163470/src/js/set_attribute.js",
         include_str!(
-            "../../../crates/dodeca-devtools/pkg/snippets/dioxus-interpreter-js-267e64abc8a52eaa/src/js/set_attribute.js"
+            "../../../crates/dodeca-devtools/pkg/snippets/dioxus-interpreter-js-ce7056f341163470/src/js/set_attribute.js"
         ),
     ),
     (
-        "snippets/dioxus-web-807c31b5ece9dd6a/inline0.js",
+        "snippets/dioxus-web-fe956e4b19891335/inline0.js",
         include_str!(
-            "../../../crates/dodeca-devtools/pkg/snippets/dioxus-web-807c31b5ece9dd6a/inline0.js"
+            "../../../crates/dodeca-devtools/pkg/snippets/dioxus-web-fe956e4b19891335/inline0.js"
         ),
     ),
     (
-        "snippets/dioxus-web-807c31b5ece9dd6a/src/js/eval.js",
+        "snippets/dioxus-web-fe956e4b19891335/src/js/eval.js",
         include_str!(
-            "../../../crates/dodeca-devtools/pkg/snippets/dioxus-web-807c31b5ece9dd6a/src/js/eval.js"
+            "../../../crates/dodeca-devtools/pkg/snippets/dioxus-web-fe956e4b19891335/src/js/eval.js"
         ),
     ),
 ];

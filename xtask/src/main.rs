@@ -218,8 +218,8 @@ fn build_dodeca(release: bool) -> bool {
         "build",
         "--package",
         "dodeca",
-        "--package",
-        "dodeca-mod-http",
+        //"--package",
+        //"dodeca-mod-http",
     ]);
     if release {
         cmd.arg("--release");
