@@ -112,7 +112,7 @@ impl TestSite {
 
         let mut child = Command::new(&ddc)
             .args(["serve", &fixture_str, "--no-tui", "-p", "0"])
-            .env("DODECA_PLUGIN_PATH", &plugins)
+            .env("DODECA_CELL_PATH", &plugins)
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit())
             .spawn()
@@ -453,7 +453,7 @@ pub fn build_site(src: &Path) -> BuildResult {
 
     let output = Command::new(&ddc)
         .args(["build", &fixture_str])
-        .env("DODECA_PLUGIN_PATH", &plugins)
+        .env("DODECA_CELL_PATH", &plugins)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()

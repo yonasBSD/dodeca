@@ -11,7 +11,7 @@ fn main() {
 }
 
 fn build_wasm_crate(name: &str) {
-    let crate_path = format!("crates/{name}");
+    let crate_path = format!("../{name}");
     let pkg_dir = std::path::Path::new(&crate_path).join("pkg");
 
     // Re-run if the source changes
