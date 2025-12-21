@@ -587,11 +587,17 @@ jobs:
           merge-multiple: "true"
 
       - 
-        name: List artifacts
+        name: List artifacts (before flatten)
         run: ls -laR dist/
       - 
+        name: Flatten artifact directories
+        run: find dist -mindepth 2 -type f -exec mv -t dist {} + 2>/dev/null || true; find dist -mindepth 1 -type d -empty -delete 2>/dev/null || true
+      - 
+        name: List artifacts (after flatten)
+        run: ls -la dist/
+      - 
         name: Create GitHub Release
-        run: "gh release create \"${{ github.ref_name }}\" \\\n  --title \"dodeca ${{ github.ref_name }}\" \\\n  --generate-notes \\\n  dist/**/*.tar.xz dist/**/*.zip"
+        run: "shopt -s nullglob\ngh release create \"${{ github.ref_name }}\" \\\n  --title \"dodeca ${{ github.ref_name }}\" \\\n  --generate-notes \\\n  dist/*.tar.xz dist/*.zip"
         shell: bash
       - 
         name: Update Homebrew tap

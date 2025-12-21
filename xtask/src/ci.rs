@@ -903,7 +903,7 @@ ctree target "{cache_dir}" && echo "Cache saved via ctree to {cache_dir}" || ech
     // This means identical binaries across runs are only stored once.
 
     /// Generate an S3 artifact upload step using content-addressed storage.
-    /// The file is uploaded to cas/<hash>, and a pointer file is written to ci/<run_id>/<name>.
+    /// The file is uploaded to `cas/<hash>`, and a pointer file is written to `ci/<run_id>/<name>`.
     #[allow(dead_code)]
     pub fn s3_upload_artifact(name: &str, path: &str, run_id_var: &str) -> Step {
         Step::run(
@@ -1430,14 +1430,20 @@ pub fn build_ci_workflow(platform: CiPlatform) -> Workflow {
             .steps([
                 checkout(platform),
                 download_all_artifacts(platform, "dist"),
-                Step::run("List artifacts", "ls -laR dist/"),
+                Step::run("List artifacts (before flatten)", "ls -laR dist/"),
+                Step::run(
+                    "Flatten artifact directories",
+                    "find dist -mindepth 2 -type f -exec mv -t dist {} + 2>/dev/null || true; find dist -mindepth 1 -type d -empty -delete 2>/dev/null || true",
+                ),
+                Step::run("List artifacts (after flatten)", "ls -la dist/"),
                 Step::run(
                     "Create GitHub Release",
                     format!(
-                        r#"gh release create "{ref_name}" \
+                        r#"shopt -s nullglob
+gh release create "{ref_name}" \
   --title "dodeca {ref_name}" \
   --generate-notes \
-  dist/**/*.tar.xz dist/**/*.zip"#,
+  dist/*.tar.xz dist/*.zip"#,
                         ref_name = ref_name_var
                     ),
                 )
