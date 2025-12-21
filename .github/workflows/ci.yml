@@ -597,7 +597,7 @@ jobs:
         run: ls -la dist/
       - 
         name: Create GitHub Release
-        run: "shopt -s nullglob\ngh release create \"${{ github.ref_name }}\" \\\n  --title \"dodeca ${{ github.ref_name }}\" \\\n  --generate-notes \\\n  dist/*.tar.xz dist/*.zip"
+        run: "shopt -s nullglob\n# Rename install.sh to dodeca-installer.sh for the release\ncp install.sh dist/dodeca-installer.sh\ngh release create \"${{ github.ref_name }}\" \\\n  --title \"dodeca ${{ github.ref_name }}\" \\\n  --generate-notes \\\n  dist/*.tar.xz dist/*.zip dist/dodeca-installer.sh"
         shell: bash
       - 
         name: Update Homebrew tap

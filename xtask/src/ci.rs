@@ -1440,10 +1440,12 @@ pub fn build_ci_workflow(platform: CiPlatform) -> Workflow {
                     "Create GitHub Release",
                     format!(
                         r#"shopt -s nullglob
+# Rename install.sh to dodeca-installer.sh for the release
+cp install.sh dist/dodeca-installer.sh
 gh release create "{ref_name}" \
   --title "dodeca {ref_name}" \
   --generate-notes \
-  dist/*.tar.xz dist/*.zip"#,
+  dist/*.tar.xz dist/*.zip dist/dodeca-installer.sh"#,
                         ref_name = ref_name_var
                     ),
                 )
