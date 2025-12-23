@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
 use eyre::Result;
-use rapace::{Frame, RpcError, RpcSession};
+use rapace::{BufferPool, Frame, RpcError, RpcSession};
 use rapace_tracing::{EventMeta, Field, SpanMeta, TracingSink};
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
@@ -138,30 +138,40 @@ fn create_http_cell_dispatcher(
 + 'static {
     let tracing_sink = ForwardingTracingSink::new();
     let lifecycle_registry = cell_ready_registry().clone();
+    let buffer_pool = BufferPool::new();
 
     move |frame: Frame| {
         let content_service = content_service.clone();
         let tracing_sink = tracing_sink.clone();
         let lifecycle_registry = lifecycle_registry.clone();
+        let buffer_pool = buffer_pool.clone();
         let method_id = frame.desc.method_id;
 
         Box::pin(async move {
             // Try TracingSink service first
             let tracing_server = TracingSinkServer::new(tracing_sink);
-            if let Ok(response) = tracing_server.dispatch(method_id, &frame).await {
+            if let Ok(response) = tracing_server
+                .dispatch(method_id, &frame, &buffer_pool)
+                .await
+            {
                 return Ok(response);
             }
 
             // Try CellLifecycle service
             let lifecycle_impl = HostCellLifecycle::new(lifecycle_registry);
             let lifecycle_server = CellLifecycleServer::new(lifecycle_impl);
-            if let Ok(response) = lifecycle_server.dispatch(method_id, &frame).await {
+            if let Ok(response) = lifecycle_server
+                .dispatch(method_id, &frame, &buffer_pool)
+                .await
+            {
                 return Ok(response);
             }
 
             // Try ContentService
             let content_server = ContentServiceServer::new((*content_service).clone());
-            content_server.dispatch(method_id, &frame).await
+            content_server
+                .dispatch(method_id, &frame, &buffer_pool)
+                .await
         })
     }
 }

@@ -316,7 +316,8 @@ fn inject_heading_ids(html: &str, headings: &[Heading]) -> String {
 
 rapace_cell::cell_service!(
     MarkdownProcessorServer<MarkdownProcessorImpl>,
-    MarkdownProcessorImpl
+    MarkdownProcessorImpl,
+    []
 );
 
 #[tokio::main(flavor = "current_thread")]

@@ -49,7 +49,11 @@ impl WebPProcessor for WebPProcessorImpl {
     }
 }
 
-rapace_cell::cell_service!(WebPProcessorServer<WebPProcessorImpl>, WebPProcessorImpl);
+rapace_cell::cell_service!(
+    WebPProcessorServer<WebPProcessorImpl>,
+    WebPProcessorImpl,
+    []
+);
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

@@ -47,7 +47,8 @@ impl CellContext {
 
 rapace_cell::cell_service!(
     TcpTunnelServer<tunnel::TcpTunnelImpl>,
-    tunnel::TcpTunnelImpl
+    tunnel::TcpTunnelImpl,
+    []
 );
 
 #[tokio::main(flavor = "current_thread")]

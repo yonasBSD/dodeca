@@ -378,10 +378,15 @@ fn restore_terminal() -> Result<()> {
 struct TuiCellService;
 
 impl rapace_cell::ServiceDispatch for TuiCellService {
+    fn method_ids(&self) -> &'static [u32] {
+        &[]
+    }
+
     fn dispatch(
         &self,
         _method_id: u32,
-        _payload: &[u8],
+        _frame: rapace::Frame,
+        _buffer_pool: &rapace::BufferPool,
     ) -> std::pin::Pin<
         Box<
             dyn std::future::Future<Output = Result<rapace::Frame, rapace::RpcError>>

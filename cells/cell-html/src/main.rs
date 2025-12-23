@@ -389,7 +389,11 @@ fn escape_html_attr(s: &str) -> String {
 // Cell Setup
 // ============================================================================
 
-rapace_cell::cell_service!(HtmlProcessorServer<HtmlProcessorImpl>, HtmlProcessorImpl);
+rapace_cell::cell_service!(
+    HtmlProcessorServer<HtmlProcessorImpl>,
+    HtmlProcessorImpl,
+    []
+);
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

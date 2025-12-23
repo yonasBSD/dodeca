@@ -312,23 +312,22 @@ struct PeerDiagInfo {
 struct TracingSinkService(Arc<TracingSinkServer<ForwardingTracingSink>>);
 
 impl ServiceDispatch for TracingSinkService {
+    fn method_ids(&self) -> &'static [u32] {
+        &[]
+    }
+
     fn dispatch(
         &self,
         method_id: u32,
-        frame: &Frame,
+        frame: Frame,
+        buffer_pool: &rapace::BufferPool,
     ) -> std::pin::Pin<
         Box<dyn std::future::Future<Output = Result<Frame, RpcError>> + Send + 'static>,
     > {
         let server = self.0.clone();
-        // Extract payload bytes to own the data
-        let payload = frame.payload_bytes().to_vec();
-        Box::pin(async move {
-            // Reconstruct a Frame for dispatch
-            let mut desc = rapace::MsgDescHot::new();
-            desc.method_id = method_id;
-            let request_frame = Frame::with_payload(desc, payload);
-            server.dispatch(method_id, &request_frame).await
-        })
+        let buffer_pool = buffer_pool.clone();
+        // Frame is now owned, no need to clone
+        Box::pin(async move { server.dispatch(method_id, &frame, &buffer_pool).await })
     }
 }
 
@@ -336,23 +335,22 @@ impl ServiceDispatch for TracingSinkService {
 struct CellLifecycleService(Arc<CellLifecycleServer<HostCellLifecycle>>);
 
 impl ServiceDispatch for CellLifecycleService {
+    fn method_ids(&self) -> &'static [u32] {
+        &[]
+    }
+
     fn dispatch(
         &self,
         method_id: u32,
-        frame: &Frame,
+        frame: Frame,
+        buffer_pool: &rapace::BufferPool,
     ) -> std::pin::Pin<
         Box<dyn std::future::Future<Output = Result<Frame, RpcError>> + Send + 'static>,
     > {
         let server = self.0.clone();
-        // Extract payload bytes to own the data
-        let payload = frame.payload_bytes().to_vec();
-        Box::pin(async move {
-            // Reconstruct a Frame for dispatch
-            let mut desc = rapace::MsgDescHot::new();
-            desc.method_id = method_id;
-            let request_frame = Frame::with_payload(desc, payload);
-            server.dispatch(method_id, &request_frame).await
-        })
+        let buffer_pool = buffer_pool.clone();
+        // Frame is now owned, no need to clone
+        Box::pin(async move { server.dispatch(method_id, &frame, &buffer_pool).await })
     }
 }
 
@@ -738,10 +736,11 @@ impl CellRegistry {
         let lifecycle_impl = HostCellLifecycle::new(cell_ready_registry().clone());
         let lifecycle_server = Arc::new(CellLifecycleServer::new(lifecycle_impl));
 
+        let buffer_pool = rapace::BufferPool::new();
         let dispatcher = DispatcherBuilder::new()
             .add_service(TracingSinkService(tracing_server))
             .add_service(CellLifecycleService(lifecycle_server))
-            .build();
+            .build(buffer_pool);
 
         rpc_session.set_dispatcher(dispatcher);
 
