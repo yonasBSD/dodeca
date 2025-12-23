@@ -144,25 +144,24 @@ fn create_http_cell_dispatcher(
         let tracing_sink = tracing_sink.clone();
         let lifecycle_registry = lifecycle_registry.clone();
         let method_id = frame.desc.method_id;
-        let payload = frame.payload_bytes().to_vec();
 
         Box::pin(async move {
             // Try TracingSink service first
             let tracing_server = TracingSinkServer::new(tracing_sink);
-            if let Ok(frame) = tracing_server.dispatch(method_id, &payload).await {
-                return Ok(frame);
+            if let Ok(response) = tracing_server.dispatch(method_id, &frame).await {
+                return Ok(response);
             }
 
             // Try CellLifecycle service
             let lifecycle_impl = HostCellLifecycle::new(lifecycle_registry);
             let lifecycle_server = CellLifecycleServer::new(lifecycle_impl);
-            if let Ok(frame) = lifecycle_server.dispatch(method_id, &payload).await {
-                return Ok(frame);
+            if let Ok(response) = lifecycle_server.dispatch(method_id, &frame).await {
+                return Ok(response);
             }
 
             // Try ContentService
             let content_server = ContentServiceServer::new((*content_service).clone());
-            content_server.dispatch(method_id, &payload).await
+            content_server.dispatch(method_id, &frame).await
         })
     }
 }

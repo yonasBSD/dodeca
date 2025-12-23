@@ -315,13 +315,20 @@ impl ServiceDispatch for TracingSinkService {
     fn dispatch(
         &self,
         method_id: u32,
-        payload: &[u8],
+        frame: &Frame,
     ) -> std::pin::Pin<
         Box<dyn std::future::Future<Output = Result<Frame, RpcError>> + Send + 'static>,
     > {
         let server = self.0.clone();
-        let payload = payload.to_vec();
-        Box::pin(async move { server.dispatch(method_id, &payload).await })
+        // Extract payload bytes to own the data
+        let payload = frame.payload_bytes().to_vec();
+        Box::pin(async move {
+            // Reconstruct a Frame for dispatch
+            let mut desc = rapace::MsgDescHot::new();
+            desc.method_id = method_id;
+            let request_frame = Frame::with_payload(desc, payload);
+            server.dispatch(method_id, &request_frame).await
+        })
     }
 }
 
@@ -332,13 +339,20 @@ impl ServiceDispatch for CellLifecycleService {
     fn dispatch(
         &self,
         method_id: u32,
-        payload: &[u8],
+        frame: &Frame,
     ) -> std::pin::Pin<
         Box<dyn std::future::Future<Output = Result<Frame, RpcError>> + Send + 'static>,
     > {
         let server = self.0.clone();
-        let payload = payload.to_vec();
-        Box::pin(async move { server.dispatch(method_id, &payload).await })
+        // Extract payload bytes to own the data
+        let payload = frame.payload_bytes().to_vec();
+        Box::pin(async move {
+            // Reconstruct a Frame for dispatch
+            let mut desc = rapace::MsgDescHot::new();
+            desc.method_id = method_id;
+            let request_frame = Frame::with_payload(desc, payload);
+            server.dispatch(method_id, &request_frame).await
+        })
     }
 }
 
