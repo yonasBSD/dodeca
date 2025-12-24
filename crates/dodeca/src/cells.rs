@@ -313,7 +313,19 @@ struct TracingSinkService(Arc<TracingSinkServer<ForwardingTracingSink>>);
 
 impl ServiceDispatch for TracingSinkService {
     fn method_ids(&self) -> &'static [u32] {
-        &[]
+        use rapace_tracing::{
+            TRACING_SINK_METHOD_ID_DROP_SPAN, TRACING_SINK_METHOD_ID_ENTER,
+            TRACING_SINK_METHOD_ID_EVENT, TRACING_SINK_METHOD_ID_EXIT,
+            TRACING_SINK_METHOD_ID_NEW_SPAN, TRACING_SINK_METHOD_ID_RECORD,
+        };
+        &[
+            TRACING_SINK_METHOD_ID_NEW_SPAN,
+            TRACING_SINK_METHOD_ID_RECORD,
+            TRACING_SINK_METHOD_ID_EVENT,
+            TRACING_SINK_METHOD_ID_ENTER,
+            TRACING_SINK_METHOD_ID_EXIT,
+            TRACING_SINK_METHOD_ID_DROP_SPAN,
+        ]
     }
 
     fn dispatch(
@@ -336,7 +348,8 @@ struct CellLifecycleService(Arc<CellLifecycleServer<HostCellLifecycle>>);
 
 impl ServiceDispatch for CellLifecycleService {
     fn method_ids(&self) -> &'static [u32] {
-        &[]
+        use rapace_cell::lifecycle::CELL_LIFECYCLE_METHOD_ID_READY;
+        &[CELL_LIFECYCLE_METHOD_ID_READY]
     }
 
     fn dispatch(
