@@ -15,6 +15,7 @@ pub enum BootState {
     /// Server is ready to handle requests
     Ready,
     /// Fatal startup error - server will serve HTTP 500s
+    #[allow(dead_code)] // Variant planned for future error handling
     Fatal {
         error_kind: ErrorKind,
         message: String,
@@ -32,6 +33,7 @@ pub enum BootPhase {
 
 /// Error kind for fatal boot failures
 #[derive(Clone, Debug)]
+#[allow(dead_code)] // Variants planned for future error handling
 pub enum ErrorKind {
     /// Required cell binary not found or not executable
     MissingCell,
@@ -53,6 +55,7 @@ impl BootState {
     }
 
     /// Transition to fatal error state
+    #[allow(dead_code)] // Planned for future error handling
     pub fn fatal(error_kind: ErrorKind, message: impl Into<String>) -> Self {
         Self::Fatal {
             error_kind,
@@ -100,6 +103,7 @@ impl BootStateManager {
     }
 
     /// Mark the server as fatally failed
+    #[allow(dead_code)] // Planned for future error handling
     pub fn set_fatal(&self, error_kind: ErrorKind, message: impl Into<String>) {
         let elapsed_ms = self.start_time.elapsed().as_millis();
         let message = message.into();

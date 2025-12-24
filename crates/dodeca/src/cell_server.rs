@@ -22,7 +22,7 @@ use cell_http_proto::{ContentServiceServer, TcpTunnelClient};
 use rapace_cell::CellLifecycleServer;
 use rapace_tracing::TracingSinkServer;
 
-use crate::boot_state::{BootPhase, BootState, BootStateManager, ErrorKind};
+use crate::boot_state::{BootPhase, BootState, BootStateManager};
 use crate::cells::{HostCellLifecycle, all, cell_ready_registry, get_cell_session};
 use crate::content_service::HostContentService;
 use crate::serve::SiteServer;
