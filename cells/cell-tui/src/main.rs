@@ -408,8 +408,17 @@ async fn main() -> Result<()> {
     color_eyre::install()?;
 
     rapace_cell::run_with_session(|session| {
-        // Spawn the TUI loop
-        tokio::spawn(run_tui(session));
+        // Spawn the TUI loop - when it exits, terminate the cell process
+        tokio::spawn(async move {
+            let result = run_tui(session).await;
+            if let Err(e) = &result {
+                eprintln!("TUI error: {e}");
+            }
+            // TUI exited (user pressed 'q'), terminate the cell process
+            // This is necessary because run_with_session waits on session.run()
+            // which would keep the process alive otherwise
+            std::process::exit(if result.is_ok() { 0 } else { 1 });
+        });
         TuiCellService
     })
     .await?;

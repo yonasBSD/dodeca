@@ -390,9 +390,14 @@ pub async fn get_hub() -> Option<(Arc<HubHost>, PathBuf)> {
 ///
 /// This is used for cells like TUI that need a custom dispatcher rather than
 /// just being clients that we call methods on.
+///
+/// Set `inherit_stdio` to `true` for cells that need direct terminal access (like TUI).
+/// When true, stdin/stdout/stderr are inherited from the parent process, allowing
+/// the cell to interact with the terminal directly.
 pub async fn spawn_cell_with_dispatcher<D>(
     binary_name: &str,
     dispatcher_factory: impl FnOnce(Arc<RpcSession>) -> D,
+    inherit_stdio: bool,
 ) -> Option<(Arc<RpcSession>, tokio::process::Child)>
 where
     D: Fn(
@@ -436,14 +441,22 @@ where
     let mut cmd = Command::new(&path);
     cmd.arg(format!("--hub-path={}", hub_path.display()))
         .arg(format!("--peer-id={}", peer_id))
-        .arg(format!("--doorbell-fd={}", peer_doorbell_fd))
-        .stdin(Stdio::null());
+        .arg(format!("--doorbell-fd={}", peer_doorbell_fd));
 
-    if is_quiet_mode() {
-        cmd.stdout(Stdio::null()).stderr(Stdio::null());
-        cmd.env("DODECA_QUIET", "1");
+    if inherit_stdio {
+        // Terminal cells (like TUI) need direct access to stdin/stdout/stderr
+        // to render to the terminal and receive keyboard input
+        cmd.stdin(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit());
     } else {
-        cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+        cmd.stdin(Stdio::null());
+        if is_quiet_mode() {
+            cmd.stdout(Stdio::null()).stderr(Stdio::null());
+            cmd.env("DODECA_QUIET", "1");
+        } else {
+            cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+        }
     }
 
     let mut child = match ur_taking_me_with_you::spawn_dying_with_parent_async(cmd) {
@@ -459,7 +472,7 @@ where
         dodeca_debug::register_child_pid(pid);
     }
 
-    if !is_quiet_mode() {
+    if !inherit_stdio && !is_quiet_mode() {
         capture_cell_stdio(binary_name, &mut child);
     }
 
@@ -477,8 +490,39 @@ where
     // Register for diagnostics
     register_peer_diag(peer_id, binary_name, rpc_session.clone());
 
-    // Set up the custom dispatcher
-    rpc_session.set_dispatcher(dispatcher_factory(rpc_session.clone()));
+    // Set up the custom dispatcher combined with CellLifecycle service
+    // (cells using run_with_session send a ready signal that needs handling)
+    let custom_dispatcher = dispatcher_factory(rpc_session.clone());
+    let lifecycle_impl = HostCellLifecycle::new(cell_ready_registry().clone());
+    let lifecycle_service: Arc<dyn ServiceDispatch> =
+        Arc::new(CellLifecycleServer::new(lifecycle_impl).into_dispatch());
+    let lifecycle_method_ids = lifecycle_service.method_ids();
+    let buffer_pool = rpc_session.buffer_pool().clone();
+
+    let combined_dispatcher = move |request: Frame| {
+        let method_id = request.desc.method_id;
+
+        // Check if this is a CellLifecycle method
+        if lifecycle_method_ids.contains(&method_id) {
+            let service = lifecycle_service.clone();
+            let pool = buffer_pool.clone();
+            let channel_id = request.desc.channel_id;
+            let msg_id = request.desc.msg_id;
+            Box::pin(async move {
+                let mut response = service.dispatch(method_id, request, &pool).await?;
+                response.desc.channel_id = channel_id;
+                response.desc.msg_id = msg_id;
+                Ok(response)
+            })
+                as std::pin::Pin<
+                    Box<dyn std::future::Future<Output = Result<Frame, rapace::RpcError>> + Send>,
+                >
+        } else {
+            custom_dispatcher(request)
+        }
+    };
+
+    rpc_session.set_dispatcher(combined_dispatcher);
 
     // Spawn the RPC session runner
     {

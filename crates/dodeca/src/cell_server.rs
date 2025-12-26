@@ -385,7 +385,7 @@ async fn run_async_accept_loop(
     session_rx: watch::Receiver<Option<Arc<RpcSession>>>,
     boot_state_rx: watch::Receiver<BootState>,
     server: Arc<SiteServer>,
-    mut shutdown_rx: Option<watch::Receiver<bool>>,
+    shutdown_rx: Option<watch::Receiver<bool>>,
     shutdown_flag: Arc<AtomicBool>,
 ) -> Result<()> {
     tracing::debug!(
@@ -400,24 +400,27 @@ async fn run_async_accept_loop(
         REQUIRED_CELLS
     );
 
-    let accept_start = Instant::now();
-    let mut accept_seq: u64 = 0;
+    // Spawn accept tasks for each listener
+    let mut accept_handles = Vec::new();
+    for listener in listeners {
+        let session_rx = session_rx.clone();
+        let boot_state_rx = boot_state_rx.clone();
+        let server = server.clone();
+        let shutdown_flag = shutdown_flag.clone();
 
-    // For simplicity with multiple listeners, we'll use the first one.
-    // In FD-passing mode there's only one listener anyway.
-    // For multi-listener cases, we could use tokio::select! with all of them.
-    let listener = listeners
-        .into_iter()
-        .next()
-        .ok_or_else(|| eyre::eyre!("No listeners available"))?;
+        let handle = tokio::spawn(async move {
+            loop {
+                if shutdown_flag.load(Ordering::Relaxed) {
+                    break;
+                }
 
-    loop {
-        tokio::select! {
-            accept_result = listener.accept() => {
-                accept_seq = accept_seq.wrapping_add(1);
+                let accept_result = listener.accept().await;
                 let (stream, addr) = match accept_result {
                     Ok((s, a)) => (s, a),
                     Err(e) => {
+                        if shutdown_flag.load(Ordering::Relaxed) {
+                            break;
+                        }
                         tracing::warn!(error = %e, "Accept error");
                         continue;
                     }
@@ -437,8 +440,6 @@ async fn run_async_accept_loop(
                     conn_id,
                     peer_addr = ?addr,
                     ?local_addr,
-                    accept_seq,
-                    elapsed_ms = accept_start.elapsed().as_millis(),
                     ?linger_info,
                     "Accepted browser connection"
                 );
@@ -447,15 +448,14 @@ async fn run_async_accept_loop(
                 let boot_state_rx = boot_state_rx.clone();
                 let server = server.clone();
                 tokio::spawn(async move {
-                    if let Err(e) =
-                        handle_browser_connection(
-                            conn_id,
-                            stream,
-                            session_rx,
-                            boot_state_rx,
-                            server,
-                        )
-                        .await
+                    if let Err(e) = handle_browser_connection(
+                        conn_id,
+                        stream,
+                        session_rx,
+                        boot_state_rx,
+                        server,
+                    )
+                    .await
                     {
                         tracing::warn!(
                             conn_id,
@@ -465,22 +465,31 @@ async fn run_async_accept_loop(
                     }
                 });
             }
-            _ = async {
-                if let Some(ref mut rx) = shutdown_rx {
-                    rx.changed().await.ok();
-                    if *rx.borrow() {
-                        return;
-                    }
-                }
-                std::future::pending::<()>().await
-            } => {
+        });
+        accept_handles.push(handle);
+    }
+
+    // Wait for shutdown signal
+    if let Some(mut rx) = shutdown_rx {
+        loop {
+            rx.changed().await.ok();
+            if *rx.borrow() {
                 tracing::info!("Shutdown signal received, stopping HTTP server");
                 break;
             }
         }
+    } else {
+        // No shutdown signal - wait forever
+        std::future::pending::<()>().await;
     }
 
     shutdown_flag.store(true, Ordering::Relaxed);
+
+    // Abort all accept tasks
+    for handle in accept_handles {
+        handle.abort();
+    }
+
     Ok(())
 }
 

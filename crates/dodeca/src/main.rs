@@ -2627,7 +2627,7 @@ async fn serve_with_tui(
             let cell_path_clone = cell_path.clone();
             let event_tx_clone = event_tx.clone();
 
-            tokio::spawn(async move {
+            let server_task = tokio::spawn(async move {
                 if let Err(e) = cell_server::start_cell_server_with_shutdown(
                     server_clone,
                     cell_path_clone,
@@ -2689,6 +2689,10 @@ async fn serve_with_tui(
             for ip in &ips {
                 let _ = event_tx.send(LogEvent::server(format!("  → {ip}:{actual_port}")));
             }
+
+            // Wait for server to complete (shutdown signal received)
+            // This ensures the outer task doesn't return until the server is actually stopped
+            let _ = server_task.await;
         })
     };
 
@@ -2948,5 +2952,7 @@ async fn serve_with_tui(
         Err(e) => eprintln!("Failed to save cache: {e}"),
     }
 
-    Ok(())
+    // Force exit - the forwarder tasks (especially spawn_blocking) won't be
+    // cancelled automatically when the async runtime shuts down
+    std::process::exit(0)
 }

@@ -306,9 +306,11 @@ pub async fn start_tui_cell(
         TuiHostServer::new(wrapper).into_session_dispatcher(session.transport().clone())
     };
 
+    // TUI cell needs inherit_stdio=true for direct terminal access
     let (_rpc_session, mut child) = crate::cells::spawn_cell_with_dispatcher(
         "ddc-cell-tui",
         dispatcher_factory,
+        true, // inherit_stdio: TUI needs direct terminal access
     )
     .await
     .ok_or_else(|| {
