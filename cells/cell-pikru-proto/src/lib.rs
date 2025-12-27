@@ -23,5 +23,7 @@ pub trait PikruProcessor {
     /// Render a Pikchr diagram to SVG.
     ///
     /// Takes Pikchr source code and returns SVG output.
-    async fn render(&self, source: String) -> PikruResult;
+    /// If css_variables is true, colors will use CSS custom properties
+    /// with light-dark() for automatic theme switching.
+    async fn render(&self, source: String, css_variables: bool) -> PikruResult;
 }

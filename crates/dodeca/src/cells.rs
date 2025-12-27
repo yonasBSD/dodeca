@@ -1948,7 +1948,8 @@ pub async fn render_pikru(source: &str) -> Option<PikruResult> {
         source_len = source.len(),
         "render_pikru: sending RPC request"
     );
-    match client.render(source.to_string()).await {
+    // Enable CSS variables for automatic light/dark mode theme switching
+    match client.render(source.to_string(), true).await {
         Ok(result) => {
             tracing::debug!("render_pikru: RPC request succeeded");
             Some(result)

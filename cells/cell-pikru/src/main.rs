@@ -8,9 +8,30 @@ use cell_pikru_proto::{PikruProcessor, PikruProcessorServer, PikruResult};
 pub struct PikruProcessorImpl;
 
 impl PikruProcessor for PikruProcessorImpl {
-    async fn render(&self, source: String) -> PikruResult {
-        // Render the Pikchr source to SVG
-        match pikru::pikchr(&source) {
+    async fn render(&self, source: String, css_variables: bool) -> PikruResult {
+        // Parse the Pikchr source
+        let program = match pikru::parse::parse(&source) {
+            Ok(prog) => prog,
+            Err(e) => {
+                return PikruResult::Error {
+                    message: format!("{}", e),
+                };
+            }
+        };
+
+        // Expand macros
+        let program = match pikru::macros::expand_macros(program) {
+            Ok(prog) => prog,
+            Err(e) => {
+                return PikruResult::Error {
+                    message: format!("{}", e),
+                };
+            }
+        };
+
+        // Render to SVG with options
+        let options = pikru::render::RenderOptions { css_variables };
+        match pikru::render::render_with_options(&program, &options) {
             Ok(svg) => PikruResult::Success { svg },
             Err(e) => PikruResult::Error {
                 message: format!("{}", e),

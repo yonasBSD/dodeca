@@ -7215,7 +7215,7 @@ dependencies = [
 [[package]]
 name = "pikru"
 version = "0.1.0"
-source = "git+https://github.com/bearcove/pikru#44fce14889cdd1bb5afa0d08710f875322d8a805"
+source = "git+https://github.com/bearcove/pikru?rev=014afb3#014afb35785025d47240d5e6645703684f7f14da"
 dependencies = [
  "camino",
  "enum_dispatch",
