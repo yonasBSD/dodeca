@@ -6,7 +6,7 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use rapace::RpcSession;
+use rapace_cell::CellSession;
 
 use cell_http_proto::{TcpTunnel, TunnelHandle};
 
@@ -14,12 +14,12 @@ use cell_http_proto::{TcpTunnel, TunnelHandle};
 ///
 /// Each `open()` call allocates a new tunnel channel and serves HTTP/1 on it.
 pub struct TcpTunnelImpl {
-    session: Arc<RpcSession>,
+    session: Arc<CellSession>,
     app: axum::Router,
 }
 
 impl TcpTunnelImpl {
-    pub fn new(session: Arc<RpcSession>, app: axum::Router) -> Self {
+    pub fn new(session: Arc<CellSession>, app: axum::Router) -> Self {
         Self { session, app }
     }
 }

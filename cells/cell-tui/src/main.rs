@@ -15,8 +15,8 @@ use crossterm::{
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use futures::StreamExt;
-use rapace::RpcSession;
 use rapace::transport::shm::HubPeerTransport;
+use rapace_cell::CellSession;
 use ratatui::{
     DefaultTerminal, Frame,
     layout::{Constraint, Layout},
@@ -437,7 +437,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn run_tui(session: Arc<RpcSession>) -> Result<()> {
+async fn run_tui(session: Arc<CellSession>) -> Result<()> {
     // Create TuiHost client
     let client = TuiHostClient::new(session.clone());
 

@@ -20,7 +20,8 @@
 
 use std::sync::Arc;
 
-use rapace::RpcSession;
+use rapace::transport::shm::ShmTransport;
+use rapace_cell::CellSession;
 
 use cell_http_proto::{ContentServiceClient, TcpTunnelServer, WebSocketTunnelClient};
 
@@ -30,17 +31,17 @@ mod tunnel;
 /// Cell context shared across HTTP handlers
 pub struct CellContext {
     /// RPC session for bidirectional communication with host
-    pub session: Arc<RpcSession>,
+    pub session: Arc<CellSession>,
 }
 
 impl CellContext {
     /// Create a ContentServiceClient for calling the host
-    pub fn content_client(&self) -> ContentServiceClient {
+    pub fn content_client(&self) -> ContentServiceClient<ShmTransport> {
         ContentServiceClient::new(self.session.clone())
     }
 
     /// Create a WebSocketTunnelClient for opening devtools tunnels to host
-    pub fn ws_tunnel_client(&self) -> WebSocketTunnelClient {
+    pub fn ws_tunnel_client(&self) -> WebSocketTunnelClient<ShmTransport> {
         WebSocketTunnelClient::new(self.session.clone())
     }
 }
@@ -52,7 +53,7 @@ rapace_cell::cell_service!(
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    rapace_cell::run_with_session(|session: Arc<RpcSession>| {
+    rapace_cell::run_with_session(|session: Arc<CellSession>| {
         // Build cell context
         let ctx = Arc::new(CellContext {
             session: session.clone(),

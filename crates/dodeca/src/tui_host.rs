@@ -13,7 +13,7 @@ use cell_tui_proto::{
 };
 use eyre::Result;
 use futures::StreamExt;
-use rapace::RpcSession;
+use rapace::Session;
 use rapace::Streaming;
 use tokio::sync::{broadcast, mpsc, watch};
 use tokio_stream::wrappers::{BroadcastStream, WatchStream, errors::BroadcastStreamRecvError};
@@ -301,7 +301,7 @@ pub async fn start_tui_cell(
     mut shutdown_rx: Option<watch::Receiver<bool>>,
 ) -> Result<()> {
     let tui_host_arc = Arc::new(tui_host);
-    let dispatcher_factory = move |session: Arc<RpcSession>| {
+    let dispatcher_factory = move |session: Arc<Session>| {
         let wrapper = TuiHostWrapper(tui_host_arc.clone());
         TuiHostServer::new(wrapper).into_session_dispatcher(session.transport().clone())
     };

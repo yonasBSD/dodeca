@@ -40,7 +40,7 @@ use cell_svgo_proto::{SvgoOptimizerClient, SvgoResult};
 use cell_webp_proto::{WebPEncodeInput, WebPProcessorClient, WebPResult};
 use dashmap::DashMap;
 use rapace::transport::shm::{HubConfig, HubHost, HubHostPeerTransport, close_peer_fd};
-use rapace::{Frame, RpcError, RpcSession};
+use rapace::{AnyTransport, Frame, RpcError, RpcSession, Session};
 use rapace_cell::{CellLifecycle, CellLifecycleServer, ReadyAck, ReadyMsg};
 use rapace_cell::{DispatcherBuilder, ServiceDispatch};
 use rapace_tracing::{TracingConfigClient, TracingSinkServer};
@@ -312,7 +312,7 @@ async fn push_tracing_filter_to_cells() {
 struct PeerDiagInfo {
     peer_id: u16,
     name: String,
-    rpc_session: Arc<RpcSession>,
+    rpc_session: Arc<Session>,
 }
 
 /// Temporary wrapper for TracingSinkServer to implement ServiceDispatch.
@@ -362,7 +362,7 @@ impl ServiceDispatch for TracingSinkService {
 static PEER_DIAG_INFO: RwLock<Vec<PeerDiagInfo>> = RwLock::new(Vec::new());
 
 /// Register a peer's transport and RPC session for diagnostics.
-fn register_peer_diag(peer_id: u16, name: &str, rpc_session: Arc<RpcSession>) {
+fn register_peer_diag(peer_id: u16, name: &str, rpc_session: Arc<Session>) {
     if let Ok(mut info) = PEER_DIAG_INFO.write() {
         info.push(PeerDiagInfo {
             peer_id,
@@ -374,7 +374,7 @@ fn register_peer_diag(peer_id: u16, name: &str, rpc_session: Arc<RpcSession>) {
 
 /// Get a cell's RPC session by binary name (e.g., "ddc-cell-http").
 /// Returns None if the cell is not loaded.
-pub fn get_cell_session(name: &str) -> Option<Arc<RpcSession>> {
+pub fn get_cell_session(name: &str) -> Option<Arc<Session>> {
     PEER_DIAG_INFO
         .read()
         .ok()?
@@ -403,9 +403,9 @@ pub async fn get_hub() -> Option<(Arc<HubHost>, PathBuf)> {
 /// the cell to interact with the terminal directly.
 pub async fn spawn_cell_with_dispatcher<D>(
     binary_name: &str,
-    dispatcher_factory: impl FnOnce(Arc<RpcSession>) -> D,
+    dispatcher_factory: impl FnOnce(Arc<Session>) -> D,
     inherit_stdio: bool,
-) -> Option<(Arc<RpcSession>, tokio::process::Child)>
+) -> Option<(Arc<Session>, tokio::process::Child)>
 where
     D: Fn(
             Frame,
@@ -488,11 +488,12 @@ where
 
     // Create transport
     let peer_transport = HubHostPeerTransport::new(hub.clone(), peer_id, peer_info.doorbell);
-    let transport = rapace::Transport::Shm(rapace::transport::shm::ShmTransport::HubHostPeer(
-        peer_transport.clone(),
-    ));
+    let transport = rapace::transport::shm::ShmTransport::HubHostPeer(peer_transport.clone());
 
-    let rpc_session = Arc::new(RpcSession::with_channel_start(transport.clone(), 1));
+    let rpc_session = Arc::new(RpcSession::with_channel_start(
+        AnyTransport::new(transport),
+        1,
+    ));
 
     // Register for diagnostics
     register_peer_diag(peer_id, binary_name, rpc_session.clone());
@@ -610,7 +611,7 @@ pub fn init_hub_diagnostics() {
 /// Info about a spawned cell with its RPC session already running.
 struct SpawnedCell {
     peer_id: u16,
-    rpc_session: Arc<RpcSession>,
+    rpc_session: Arc<Session>,
 }
 
 macro_rules! define_cells {
@@ -618,7 +619,7 @@ macro_rules! define_cells {
         #[derive(Default)]
         pub struct CellRegistry {
             $(
-                pub $key: Option<Arc<$Client>>,
+                pub $key: Option<Arc<$Client<AnyTransport>>>,
             )*
         }
 
@@ -770,11 +771,12 @@ impl CellRegistry {
         // from the cell right away, preventing slot exhaustion on the current_thread
         // tokio runtime.
         let peer_transport = HubHostPeerTransport::new(hub.clone(), peer_id, peer_info.doorbell);
-        let transport = rapace::Transport::Shm(rapace::transport::shm::ShmTransport::HubHostPeer(
-            peer_transport.clone(),
-        ));
+        let transport = rapace::transport::shm::ShmTransport::HubHostPeer(peer_transport.clone());
 
-        let rpc_session = Arc::new(RpcSession::with_channel_start(transport, 1));
+        let rpc_session = Arc::new(RpcSession::with_channel_start(
+            AnyTransport::new(transport),
+            1,
+        ));
 
         // Register for SIGUSR1 diagnostics
         register_peer_diag(peer_id, binary_name, rpc_session.clone());
@@ -1931,7 +1933,7 @@ pub async fn highlight_code(code: &str, language: &str) -> Option<HighlightResul
 }
 
 /// Get the syntax highlight service client, if available
-async fn syntax_highlight_client() -> Option<Arc<SyntaxHighlightServiceClient>> {
+async fn syntax_highlight_client() -> Option<Arc<SyntaxHighlightServiceClient<AnyTransport>>> {
     all().await.syntax_highlight.clone()
 }
 
@@ -1962,7 +1964,7 @@ pub async fn render_pikru(source: &str) -> Option<PikruResult> {
 }
 
 /// Get the pikru service client, if available
-async fn pikru_client() -> Option<Arc<PikruProcessorClient>> {
+async fn pikru_client() -> Option<Arc<PikruProcessorClient<AnyTransport>>> {
     all().await.pikru.clone()
 }
 
@@ -2082,7 +2084,7 @@ async fn _parse_frontmatter_cell(
 use crate::template_host::{TemplateHostImpl, render_context_registry};
 
 /// Global gingembre cell client.
-static GINGEMBRE_CELL: tokio::sync::OnceCell<Arc<TemplateRendererClient>> =
+static GINGEMBRE_CELL: tokio::sync::OnceCell<Arc<TemplateRendererClient<AnyTransport>>> =
     tokio::sync::OnceCell::const_new();
 
 /// Temporary wrapper for TemplateHostServer to implement ServiceDispatch.
@@ -2208,11 +2210,12 @@ async fn spawn_gingembre_cell(path: &Path, hub: &Arc<HubHost>, hub_path: &Path) 
 
     // Create transport
     let peer_transport = HubHostPeerTransport::new(hub.clone(), peer_id, peer_info.doorbell);
-    let transport = rapace::Transport::Shm(rapace::transport::shm::ShmTransport::HubHostPeer(
-        peer_transport,
-    ));
+    let transport = rapace::transport::shm::ShmTransport::HubHostPeer(peer_transport);
 
-    let rpc_session = Arc::new(RpcSession::with_channel_start(transport, 1));
+    let rpc_session = Arc::new(RpcSession::with_channel_start(
+        AnyTransport::new(transport),
+        1,
+    ));
 
     // Register for diagnostics
     register_peer_diag(peer_id, "ddc-cell-gingembre", rpc_session.clone());
@@ -2284,7 +2287,7 @@ async fn spawn_gingembre_cell(path: &Path, hub: &Arc<HubHost>, hub_path: &Path) 
 }
 
 /// Get the gingembre cell client, if available.
-pub async fn gingembre_cell() -> Option<Arc<TemplateRendererClient>> {
+pub async fn gingembre_cell() -> Option<Arc<TemplateRendererClient<AnyTransport>>> {
     GINGEMBRE_CELL.get().cloned()
 }
 

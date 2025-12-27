@@ -1338,6 +1338,7 @@ dependencies = [
  "futures",
  "gingembre",
  "miette",
+ "rapace",
  "rapace-cell",
  "tokio",
  "tracing",

@@ -12,6 +12,7 @@ use axum::extract::{
 };
 use axum::response::IntoResponse;
 use futures_util::{SinkExt, StreamExt};
+use rapace::PooledBuf;
 
 use crate::CellContext;
 
@@ -48,15 +49,16 @@ async fn handle_socket(socket: WebSocket, ctx: Arc<CellContext>) {
         while let Some(msg) = ws_receiver.next().await {
             match msg {
                 Ok(Message::Binary(data)) => {
-                    if let Err(e) = session_a.send_chunk(channel_id, data).await {
+                    let pooled = PooledBuf::from_slice(session_a.buffer_pool(), &data);
+                    if let Err(e) = session_a.send_chunk(channel_id, pooled).await {
                         tracing::debug!(channel_id, error = %e, "tunnel send error");
                         break;
                     }
                 }
                 Ok(Message::Text(text)) => {
                     // Send text as bytes too
-                    let bytes = text.as_bytes().to_vec();
-                    if let Err(e) = session_a.send_chunk(channel_id, bytes.into()).await {
+                    let pooled = PooledBuf::from_slice(session_a.buffer_pool(), text.as_bytes());
+                    if let Err(e) = session_a.send_chunk(channel_id, pooled).await {
                         tracing::debug!(channel_id, error = %e, "tunnel send error");
                         break;
                     }

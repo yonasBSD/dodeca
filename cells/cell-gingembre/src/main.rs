@@ -11,17 +11,18 @@ use cell_gingembre_proto::{
 use facet_value::DestructuredRef;
 use futures::future::BoxFuture;
 use gingembre::{Context, DataPath, DataResolver, Engine, TemplateLoader, Value};
-use rapace_cell::RpcSession;
+use rapace::transport::shm::ShmTransport;
+use rapace_cell::CellSession;
 use std::sync::Arc;
 
 /// Cell context holding the RPC session for callbacks
 pub struct CellContext {
-    pub session: Arc<RpcSession>,
+    pub session: Arc<CellSession>,
 }
 
 impl CellContext {
     /// Create a client for calling back to the host
-    pub fn host_client(&self) -> TemplateHostClient {
+    pub fn host_client(&self) -> TemplateHostClient<ShmTransport> {
         TemplateHostClient::new(self.session.clone())
     }
 }
@@ -32,12 +33,12 @@ impl CellContext {
 
 /// Template loader that calls back to the host via RPC.
 struct RpcTemplateLoader {
-    client: TemplateHostClient,
+    client: TemplateHostClient<ShmTransport>,
     context_id: ContextId,
 }
 
 impl RpcTemplateLoader {
-    fn new(client: TemplateHostClient, context_id: ContextId) -> Self {
+    fn new(client: TemplateHostClient<ShmTransport>, context_id: ContextId) -> Self {
         Self { client, context_id }
     }
 }
@@ -64,12 +65,12 @@ impl TemplateLoader for RpcTemplateLoader {
 
 /// Data resolver that calls back to the host via RPC.
 struct RpcDataResolver {
-    client: TemplateHostClient,
+    client: TemplateHostClient<ShmTransport>,
     context_id: ContextId,
 }
 
 impl RpcDataResolver {
-    fn new(client: TemplateHostClient, context_id: ContextId) -> Self {
+    fn new(client: TemplateHostClient<ShmTransport>, context_id: ContextId) -> Self {
         Self { client, context_id }
     }
 }
@@ -120,7 +121,7 @@ impl DataResolver for RpcDataResolver {
 
 /// Creates a function that calls back to the host via RPC.
 fn make_rpc_function(
-    session: Arc<RpcSession>,
+    session: Arc<CellSession>,
     context_id: ContextId,
     name: String,
 ) -> gingembre::GlobalFn {
@@ -241,7 +242,7 @@ rapace_cell::cell_service!(
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    rapace_cell::run_with_session(|session: Arc<RpcSession>| {
+    rapace_cell::run_with_session(|session: Arc<CellSession>| {
         let ctx = Arc::new(CellContext { session });
         let renderer = TemplateRendererImpl::new(ctx);
         CellService::from(renderer)

@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
 use eyre::Result;
-use rapace::{BufferPool, Frame, RpcError, RpcSession};
+use rapace::{BufferPool, Frame, RpcError, Session};
 use rapace_tracing::{EventMeta, Field, SpanMeta, TracingSink};
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
@@ -264,7 +264,7 @@ pub async fn start_cell_server_with_shutdown(
 
     tracing::debug!(port = bound_port, "BOUND");
 
-    let (session_tx, session_rx) = watch::channel::<Option<Arc<RpcSession>>>(None);
+    let (session_tx, session_rx) = watch::channel::<Option<Arc<Session>>>(None);
 
     let shutdown_flag = Arc::new(AtomicBool::new(false));
     if let Some(mut shutdown_rx) = shutdown_rx.clone() {
@@ -382,7 +382,7 @@ pub async fn start_cell_server_with_shutdown(
 /// and OS scheduling differences between macOS and Linux.
 async fn run_async_accept_loop(
     listeners: Vec<tokio::net::TcpListener>,
-    session_rx: watch::Receiver<Option<Arc<RpcSession>>>,
+    session_rx: watch::Receiver<Option<Arc<Session>>>,
     boot_state_rx: watch::Receiver<BootState>,
     server: Arc<SiteServer>,
     shutdown_rx: Option<watch::Receiver<bool>>,
@@ -522,7 +522,7 @@ Server failed to start. Check server logs for details";
 async fn handle_browser_connection(
     conn_id: u64,
     mut browser_stream: TcpStream,
-    mut session_rx: watch::Receiver<Option<Arc<RpcSession>>>,
+    mut session_rx: watch::Receiver<Option<Arc<Session>>>,
     mut boot_state_rx: watch::Receiver<BootState>,
     server: Arc<SiteServer>,
 ) -> Result<()> {
