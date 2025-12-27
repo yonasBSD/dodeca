@@ -39,6 +39,17 @@ type _CellTransport = HubPeerTransport;
 /// Maximum number of events to keep in buffer
 const MAX_EVENTS: usize = 100;
 
+/// Preset log filter expressions (cycled with 'f' key)
+const FILTER_PRESETS: &[&str] = &[
+    "",                         // Clear filter (use simple level)
+    "info",                     // Default info level
+    "warn,dodeca=info",         // Quiet deps, info for dodeca
+    "warn,dodeca=debug",        // Quiet deps, debug for dodeca
+    "warn,dodeca=trace",        // Quiet deps, trace for dodeca
+    "debug",                    // Debug everything
+    "warn,hyper=off,tower=off", // Suppress HTTP noise
+];
+
 /// Format bytes as compact human-readable size
 fn format_size(bytes: u64) -> String {
     const KB: u64 = 1024;
@@ -60,6 +71,7 @@ struct TuiApp {
     command_tx: mpsc::UnboundedSender<ServerCommand>,
     show_help: bool,
     should_quit: bool,
+    filter_preset_index: usize,
 }
 
 impl TuiApp {
@@ -71,6 +83,7 @@ impl TuiApp {
             command_tx,
             show_help: false,
             should_quit: false,
+            filter_preset_index: 0,
         }
     }
 
@@ -111,6 +124,14 @@ impl TuiApp {
             }
             KeyCode::Char('l') => {
                 let _ = self.command_tx.send(ServerCommand::CycleLogLevel);
+            }
+            KeyCode::Char('f') => {
+                // Cycle through preset log filters
+                self.filter_preset_index = (self.filter_preset_index + 1) % FILTER_PRESETS.len();
+                let filter = FILTER_PRESETS[self.filter_preset_index];
+                let _ = self.command_tx.send(ServerCommand::SetLogFilter {
+                    filter: filter.to_string(),
+                });
             }
             _ => {}
         }
@@ -299,6 +320,10 @@ impl TuiApp {
             Line::from(vec![
                 Span::raw("  l").fg(YELLOW),
                 Span::raw("      Cycle log level").fg(FG),
+            ]),
+            Line::from(vec![
+                Span::raw("  f").fg(YELLOW),
+                Span::raw("      Cycle log filter presets").fg(FG),
             ]),
             Line::from(vec![
                 Span::raw("  q").fg(YELLOW),

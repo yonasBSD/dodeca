@@ -3,11 +3,13 @@
 //! Provides:
 //! - TUI layer that routes log events to the Activity panel
 //! - Dynamic filtering with picante debug toggle
+//! - Per-crate filtering with RUST_LOG-style expressions
 //! - Slow query logging (spans >50ms)
 //! - Standard env filter for non-TUI mode
 
 use crate::tui::{EventKind, LogEvent, LogLevel};
 use std::sync::Arc;
+use std::sync::RwLock;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::mpsc::Sender;
 use std::time::Instant;
@@ -29,6 +31,7 @@ pub struct TuiLayer {
     tx: Sender<LogEvent>,
     picante_debug: Arc<AtomicBool>,
     log_level: Arc<AtomicU8>,
+    custom_filter: Arc<RwLock<Option<LogFilter>>>,
 }
 
 impl TuiLayer {
@@ -37,6 +40,7 @@ impl TuiLayer {
             tx,
             picante_debug: Arc::new(AtomicBool::new(false)),
             log_level: Arc::new(AtomicU8::new(TuiLogLevel::Info as u8)),
+            custom_filter: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -45,6 +49,7 @@ impl TuiLayer {
         FilterHandle {
             picante_debug: self.picante_debug.clone(),
             log_level: self.log_level.clone(),
+            custom_filter: self.custom_filter.clone(),
         }
     }
 
@@ -57,6 +62,17 @@ impl TuiLayer {
             3 => TuiLogLevel::Debug,
             4 => TuiLogLevel::Trace,
             _ => TuiLogLevel::Info,
+        }
+    }
+
+    /// Check if an event should be shown based on custom filter
+    fn should_show_with_filter(&self, target: &str, level: Level) -> bool {
+        let filter = self.custom_filter.read().unwrap();
+        if let Some(ref f) = *filter {
+            f.should_show(target, level)
+        } else {
+            // Fall back to simple level filter
+            self.get_log_level().should_show(level)
         }
     }
 }
@@ -106,9 +122,8 @@ where
                 return;
             }
         } else {
-            // Filter based on current log level
-            let current_level = self.get_log_level();
-            if !current_level.should_show(level) {
+            // Filter based on custom filter or simple level
+            if !self.should_show_with_filter(target, level) {
                 return;
             }
         }
@@ -146,6 +161,8 @@ where
 /// Log level for TUI filtering
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TuiLogLevel {
+    /// Show nothing
+    Off,
     /// Show only errors
     Error,
     /// Show warnings and errors
@@ -163,17 +180,19 @@ impl TuiLogLevel {
     /// Cycle to the next log level (more verbose)
     pub fn next(self) -> Self {
         match self {
+            TuiLogLevel::Off => TuiLogLevel::Error,
             TuiLogLevel::Error => TuiLogLevel::Warn,
             TuiLogLevel::Warn => TuiLogLevel::Info,
             TuiLogLevel::Info => TuiLogLevel::Debug,
             TuiLogLevel::Debug => TuiLogLevel::Trace,
-            TuiLogLevel::Trace => TuiLogLevel::Error,
+            TuiLogLevel::Trace => TuiLogLevel::Off,
         }
     }
 
     /// Short display name for TUI
     pub fn as_str(&self) -> &'static str {
         match self {
+            TuiLogLevel::Off => "OFF",
             TuiLogLevel::Error => "ERROR",
             TuiLogLevel::Warn => "WARN",
             TuiLogLevel::Info => "INFO",
@@ -185,6 +204,7 @@ impl TuiLogLevel {
     /// Check if a given tracing level should be shown at this TUI level
     pub fn should_show(&self, level: Level) -> bool {
         match self {
+            TuiLogLevel::Off => false,
             TuiLogLevel::Error => level == Level::ERROR,
             TuiLogLevel::Warn => level <= Level::WARN,
             TuiLogLevel::Info => level <= Level::INFO,
@@ -194,11 +214,92 @@ impl TuiLogLevel {
     }
 }
 
+/// A parsed log filter with per-target level overrides
+#[derive(Clone, Debug)]
+pub struct LogFilter {
+    /// Default level for targets not explicitly configured
+    default_level: TuiLogLevel,
+    /// Per-target level overrides (target prefix -> level)
+    /// More specific targets should match first
+    targets: Vec<(String, TuiLogLevel)>,
+    /// Original filter expression for display
+    expression: String,
+}
+
+impl LogFilter {
+    /// Parse a RUST_LOG-style filter expression
+    /// Examples: "info", "warn,dodeca=debug", "dodeca::cells=trace,hyper=off"
+    pub fn parse(expr: &str) -> Option<Self> {
+        let expr = expr.trim();
+        if expr.is_empty() {
+            return None;
+        }
+
+        let mut default_level = TuiLogLevel::Info;
+        let mut targets = Vec::new();
+
+        for part in expr.split(',') {
+            let part = part.trim();
+            if part.is_empty() {
+                continue;
+            }
+
+            if let Some((target, level_str)) = part.split_once('=') {
+                let level = parse_level(level_str)?;
+                targets.push((target.to_string(), level));
+            } else {
+                // No '=' means it's a default level
+                default_level = parse_level(part)?;
+            }
+        }
+
+        // Sort targets by length (descending) so more specific matches come first
+        targets.sort_by(|a, b| b.0.len().cmp(&a.0.len()));
+
+        Some(LogFilter {
+            default_level,
+            targets,
+            expression: expr.to_string(),
+        })
+    }
+
+    /// Check if an event with the given target and level should be shown
+    pub fn should_show(&self, target: &str, level: Level) -> bool {
+        // Find the most specific matching target
+        for (prefix, filter_level) in &self.targets {
+            if target.starts_with(prefix) {
+                return filter_level.should_show(level);
+            }
+        }
+        // Fall back to default
+        self.default_level.should_show(level)
+    }
+
+    /// Get the original expression for display
+    pub fn expression(&self) -> &str {
+        &self.expression
+    }
+}
+
+/// Parse a level string (info, debug, warn, error, trace, off)
+fn parse_level(s: &str) -> Option<TuiLogLevel> {
+    match s.to_lowercase().as_str() {
+        "error" | "err" => Some(TuiLogLevel::Error),
+        "warn" | "warning" => Some(TuiLogLevel::Warn),
+        "info" => Some(TuiLogLevel::Info),
+        "debug" | "dbg" => Some(TuiLogLevel::Debug),
+        "trace" => Some(TuiLogLevel::Trace),
+        "off" | "none" => Some(TuiLogLevel::Off),
+        _ => None,
+    }
+}
+
 /// Handle for dynamically updating the log filter
 #[derive(Clone)]
 pub struct FilterHandle {
     picante_debug: Arc<AtomicBool>,
     log_level: Arc<AtomicU8>,
+    custom_filter: Arc<RwLock<Option<LogFilter>>>,
 }
 
 impl FilterHandle {
@@ -214,7 +315,11 @@ impl FilterHandle {
     }
 
     /// Cycle to the next log level (more verbose, wrapping around)
+    /// This also clears any custom filter expression
     pub fn cycle_log_level(&self) -> TuiLogLevel {
+        // Clear custom filter when cycling
+        *self.custom_filter.write().unwrap() = None;
+
         let current = self.get_log_level();
         let next = current.next();
         self.log_level.store(next as u8, Ordering::Relaxed);
@@ -229,8 +334,34 @@ impl FilterHandle {
             2 => TuiLogLevel::Info,
             3 => TuiLogLevel::Debug,
             4 => TuiLogLevel::Trace,
+            5 => TuiLogLevel::Off,
             _ => TuiLogLevel::Info, // fallback
         }
+    }
+
+    /// Set a custom filter expression (RUST_LOG style)
+    /// Returns the parsed filter expression for display, or None if invalid
+    pub fn set_filter(&self, expr: &str) -> Option<String> {
+        if let Some(filter) = LogFilter::parse(expr) {
+            let display = filter.expression().to_string();
+            *self.custom_filter.write().unwrap() = Some(filter);
+            Some(display)
+        } else if expr.trim().is_empty() {
+            // Empty expression clears the filter
+            *self.custom_filter.write().unwrap() = None;
+            Some(String::new())
+        } else {
+            None
+        }
+    }
+
+    /// Get the current filter expression for display (if any)
+    pub fn get_filter_expression(&self) -> Option<String> {
+        self.custom_filter
+            .read()
+            .unwrap()
+            .as_ref()
+            .map(|f| f.expression().to_string())
     }
 }
 

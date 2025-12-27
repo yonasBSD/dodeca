@@ -2955,6 +2955,25 @@ async fn serve_with_tui(
                         if enabled { "ON" } else { "OFF" }
                     )));
                 }
+                cell_tui_proto::ServerCommand::SetLogFilter { filter } => {
+                    // Set custom log filter expression
+                    match filter_handle_for_bridge.set_filter(&filter) {
+                        Some(expr) if expr.is_empty() => {
+                            let _ = event_tx_for_bridge
+                                .send(tui::LogEvent::info("Log filter cleared".to_string()));
+                        }
+                        Some(expr) => {
+                            let _ = event_tx_for_bridge
+                                .send(tui::LogEvent::info(format!("Log filter: {}", expr)));
+                        }
+                        None => {
+                            let _ = event_tx_for_bridge.send(tui::LogEvent::warn(format!(
+                                "Invalid log filter: {}",
+                                filter
+                            )));
+                        }
+                    }
+                }
                 other => {
                     // Route to old command system for bind mode changes
                     let old_cmd = tui_host::convert_server_command(other);

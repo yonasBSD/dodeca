@@ -247,6 +247,8 @@ pub enum ServerCommand {
     TogglePicanteDebug,
     /// Cycle log level
     CycleLogLevel,
+    /// Set a custom log filter expression (RUST_LOG style)
+    SetLogFilter { filter: String },
 }
 
 /// Result of a command
