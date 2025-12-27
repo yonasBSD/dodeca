@@ -1186,6 +1186,10 @@ pub fn section_to_value(section: &Section, site_tree: &SiteTree) -> Value {
         VString::from("last_updated"),
         Value::from(section.last_updated),
     );
+    map.insert(
+        VString::from("ancestors"),
+        VArray::from_iter(build_ancestors(&section.route, site_tree)),
+    );
 
     // Add pages in this section (sorted by weight, including their headings)
     let mut pages: Vec<&Page> = site_tree
