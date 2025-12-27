@@ -72,6 +72,8 @@ struct TuiApp {
     show_help: bool,
     should_quit: bool,
     filter_preset_index: usize,
+    /// Text input mode for custom filter
+    filter_input: Option<String>,
 }
 
 impl TuiApp {
@@ -84,6 +86,7 @@ impl TuiApp {
             show_help: false,
             should_quit: false,
             filter_preset_index: 0,
+            filter_input: None,
         }
     }
 
@@ -95,6 +98,30 @@ impl TuiApp {
     }
 
     fn handle_key(&mut self, code: KeyCode, modifiers: crossterm::event::KeyModifiers) {
+        // Handle filter input mode separately
+        if let Some(ref mut input) = self.filter_input {
+            match code {
+                KeyCode::Enter => {
+                    // Apply the filter
+                    let filter = std::mem::take(input);
+                    self.filter_input = None;
+                    let _ = self.command_tx.send(ServerCommand::SetLogFilter { filter });
+                }
+                KeyCode::Esc => {
+                    // Cancel input
+                    self.filter_input = None;
+                }
+                KeyCode::Backspace => {
+                    input.pop();
+                }
+                KeyCode::Char(c) => {
+                    input.push(c);
+                }
+                _ => {}
+            }
+            return;
+        }
+
         match code {
             KeyCode::Char('c') if modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
                 self.should_quit = true;
@@ -132,6 +159,10 @@ impl TuiApp {
                 let _ = self.command_tx.send(ServerCommand::SetLogFilter {
                     filter: filter.to_string(),
                 });
+            }
+            KeyCode::Char('F') => {
+                // Enter custom filter input mode
+                self.filter_input = Some(String::new());
             }
             _ => {}
         }
@@ -271,11 +302,18 @@ impl TuiApp {
             Span::raw(" debug  ").fg(FG_DARK),
             Span::raw("l").fg(YELLOW),
             Span::raw(" level  ").fg(FG_DARK),
+            Span::raw("f").fg(YELLOW),
+            Span::raw(" filter  ").fg(FG_DARK),
             Span::raw("q").fg(YELLOW),
             Span::raw(" quit").fg(FG_DARK),
         ]))
         .style(Style::default().fg(FG_DARK));
         frame.render_widget(footer, chunks[3]);
+
+        // Filter input overlay
+        if self.filter_input.is_some() {
+            self.draw_filter_input(frame, area);
+        }
 
         // Help overlay
         if self.show_help {
@@ -283,11 +321,56 @@ impl TuiApp {
         }
     }
 
+    fn draw_filter_input(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
+        use theme::*;
+
+        let input = self.filter_input.as_deref().unwrap_or("");
+
+        let input_width = 50u16;
+        let input_height = 5u16;
+        let x = area.width.saturating_sub(input_width) / 2;
+        let y = area.height.saturating_sub(input_height) / 2;
+        let input_area = ratatui::layout::Rect::new(
+            x,
+            y,
+            input_width.min(area.width),
+            input_height.min(area.height),
+        );
+
+        frame.render_widget(Clear, input_area);
+
+        let input_lines = vec![
+            Line::from(""),
+            Line::from(vec![
+                Span::raw("  ").fg(FG),
+                Span::raw(input).fg(CYAN),
+                Span::raw("▌").fg(YELLOW), // cursor
+            ]),
+            Line::from(vec![
+                Span::raw("  Enter").fg(YELLOW),
+                Span::raw(" apply  ").fg(FG_DARK),
+                Span::raw("Esc").fg(YELLOW),
+                Span::raw(" cancel").fg(FG_DARK),
+            ]),
+        ];
+
+        let input_widget = Paragraph::new(input_lines)
+            .block(
+                Block::default()
+                    .title(" 🔍 Log Filter (RUST_LOG syntax) ")
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(CYAN)),
+            )
+            .style(Style::default().bg(BG_DARK));
+
+        frame.render_widget(input_widget, input_area);
+    }
+
     fn draw_help_overlay(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
         use theme::*;
 
         let help_width = 40u16;
-        let help_height = 14u16;
+        let help_height = 15u16;
         let x = area.width.saturating_sub(help_width) / 2;
         let y = area.height.saturating_sub(help_height) / 2;
         let help_area = ratatui::layout::Rect::new(
@@ -324,6 +407,10 @@ impl TuiApp {
             Line::from(vec![
                 Span::raw("  f").fg(YELLOW),
                 Span::raw("      Cycle log filter presets").fg(FG),
+            ]),
+            Line::from(vec![
+                Span::raw("  F").fg(YELLOW),
+                Span::raw("      Enter custom log filter").fg(FG),
             ]),
             Line::from(vec![
                 Span::raw("  q").fg(YELLOW),
