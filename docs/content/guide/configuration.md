@@ -15,16 +15,44 @@ output "public"
 
 ## Link checking
 
-`ddc build` checks links and fails the build if it finds broken ones.
+`ddc build` checks all internal and external links, failing the build if any are broken.
 
-If you have a lot of external links (or you’re hitting rate limits / anti-bot checks), you can tune external checking:
+### Configuration options
 
 ```kdl
-link_check rate_limit_ms=1000 {
-    # Skip domains entirely (useful for sites that block bots)
-    skip_domain "example.com"
+link_check rate_limit_ms=1500 {
+    skip_domain "linkedin.com"
+    skip_domain "twitter.com"
+    skip_domain "x.com"
 }
 ```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `rate_limit_ms` | integer | `1000` | Minimum delay between requests to the same domain (milliseconds) |
+| `skip_domain` | string (multiple) | none | Domains to skip checking entirely |
+
+### When to skip domains
+
+Some sites aggressively block automated requests. Consider skipping:
+
+- **Social media**: `linkedin.com`, `twitter.com`, `x.com`, `facebook.com`
+- **Sites with CAPTCHAs**: Some documentation sites require JavaScript
+- **Rate-limited APIs**: Sites that return 429 errors frequently
+
+### Example with multiple skip domains
+
+```kdl
+link_check rate_limit_ms=2000 {
+    skip_domain "linkedin.com"
+    skip_domain "twitter.com"
+    skip_domain "x.com"
+    skip_domain "facebook.com"
+    skip_domain "instagram.com"
+}
+```
+
+Internal links (links to other pages in your site) are always checked and cannot be skipped.
 
 ## Code execution
 
