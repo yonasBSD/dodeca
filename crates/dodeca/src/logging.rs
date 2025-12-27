@@ -121,6 +121,11 @@ where
             if !self.picante_debug.load(Ordering::Relaxed) {
                 return;
             }
+        // Always filter cranelift_jit to error level (very noisy)
+        } else if target.starts_with("cranelift_jit") {
+            if level > Level::ERROR {
+                return;
+            }
         } else {
             // Filter based on custom filter or simple level
             if !self.should_show_with_filter(target, level) {
@@ -475,7 +480,10 @@ pub fn init_tui_tracing(event_tx: Sender<LogEvent>) -> FilterHandle {
 
 /// Initialize tracing for non-TUI mode (uses RUST_LOG env var)
 pub fn init_standard_tracing() {
-    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    // Start with user's RUST_LOG or default to info, then add our noisy crate filters
+    let filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new("info"))
+        .add_directive("cranelift_jit=error".parse().unwrap());
     let log_format = std::env::var("DDC_LOG_FORMAT")
         .unwrap_or_default()
         .to_lowercase();
