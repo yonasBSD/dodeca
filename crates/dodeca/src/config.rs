@@ -9,6 +9,7 @@ use facet::Facet;
 use facet_kdl as kdl;
 use std::env;
 use std::fs;
+use std::sync::OnceLock;
 
 // Re-export shared config types
 pub use dodeca_code_execution_types::KdlCodeExecutionConfig as CodeExecutionConfig;
@@ -40,6 +41,23 @@ pub struct DodecaConfig {
     /// Code execution configuration
     #[facet(kdl::child, default)]
     pub code_execution: CodeExecutionConfig,
+
+    /// Syntax highlighting theme configuration
+    #[facet(kdl::child("syntax-highlight"), default)]
+    pub syntax_highlight: SyntaxHighlightConfig,
+}
+
+/// Syntax highlighting theme configuration
+#[derive(Debug, Clone, Default, Facet)]
+#[facet(traits(Default), rename_all = "kebab-case")]
+pub struct SyntaxHighlightConfig {
+    /// Light theme name (e.g., "github-light", "catppuccin-latte")
+    #[facet(default)]
+    pub light_theme: Option<String>,
+
+    /// Dark theme name (e.g., "tokyo-night", "catppuccin-mocha")
+    #[facet(default)]
+    pub dark_theme: Option<String>,
 }
 
 /// Link checking configuration
@@ -112,6 +130,10 @@ pub struct ResolvedConfig {
     /// TODO: Pass this through to the picante query system instead of using default config
     #[allow(dead_code)]
     pub code_execution: CodeExecutionConfig,
+    /// Generated CSS for light theme
+    pub light_theme_css: String,
+    /// Generated CSS for dark theme
+    pub dark_theme_css: String,
 }
 
 impl ResolvedConfig {
@@ -212,6 +234,24 @@ fn load_config(config_path: &Utf8Path) -> Result<ResolvedConfig> {
         .map(|p| p.path)
         .collect();
 
+    // Resolve theme names with defaults
+    let light_theme_name = config
+        .syntax_highlight
+        .light_theme
+        .as_deref()
+        .unwrap_or("github-light");
+    let dark_theme_name = config
+        .syntax_highlight
+        .dark_theme
+        .as_deref()
+        .unwrap_or("tokyo-night");
+
+    // Generate CSS for both themes
+    let light_theme_css = crate::theme_resolver::generate_theme_css(light_theme_name)
+        .map_err(|e| eyre!("Failed to load light theme '{}': {}", light_theme_name, e))?;
+    let dark_theme_css = crate::theme_resolver::generate_theme_css(dark_theme_name)
+        .map_err(|e| eyre!("Failed to load dark theme '{}': {}", dark_theme_name, e))?;
+
     Ok(ResolvedConfig {
         _root: root,
         content_dir,
@@ -220,7 +260,28 @@ fn load_config(config_path: &Utf8Path) -> Result<ResolvedConfig> {
         rate_limit_ms,
         stable_assets,
         code_execution: config.code_execution,
+        light_theme_css,
+        dark_theme_css,
     })
+}
+
+// ============================================================================
+// Global config access
+// ============================================================================
+
+/// Global resolved configuration
+static RESOLVED_CONFIG: OnceLock<ResolvedConfig> = OnceLock::new();
+
+/// Initialize the global config (call once at startup)
+pub fn set_global_config(config: ResolvedConfig) -> Result<()> {
+    RESOLVED_CONFIG
+        .set(config)
+        .map_err(|_| eyre!("Global config already initialized"))
+}
+
+/// Get the global config (returns None if not initialized)
+pub fn global_config() -> Option<&'static ResolvedConfig> {
+    RESOLVED_CONFIG.get()
 }
 
 #[cfg(test)]

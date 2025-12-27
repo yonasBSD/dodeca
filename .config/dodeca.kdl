@@ -25,3 +25,8 @@ code_execution {
         show_output #true
     }
 }
+
+syntax-highlight {
+    light-theme "github-light"
+    dark-theme "tokyo-night"
+}

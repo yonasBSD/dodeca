@@ -2785,6 +2785,7 @@ dependencies = [
 name = "dodeca"
 version = "0.6.1"
 dependencies = [
+ "arborium-theme",
  "camino",
  "cell-arborium-proto",
  "cell-code-execution-proto",

@@ -54,39 +54,22 @@ a[data-dead] {
 }
 </style>"#;
 
-/// CSS for syntax highlighting (arborium theme - Tokyo Night style)
-/// These styles target custom elements like `<a-k>`, `<a-c>`, `<a-f>` etc.
-const SYNTAX_HIGHLIGHT_STYLES: &str = r##"<style>
-/* Arborium syntax highlighting - Tokyo Night theme */
-a-k { color: #bb9af7; } /* keywords */
-a-f { color: #7aa2f7; } /* functions */
-a-s { color: #9ece6a; } /* strings */
-a-c { color: #565f89; } /* comments */
-a-t { color: #2ac3de; } /* types */
-a-v { color: #c0caf5; } /* variables */
-a-vb { color: #f7768e; } /* built-in variables (self, this) */
-a-co { color: #ff9e64; } /* constants */
-a-n { color: #ff9e64; } /* numbers */
-a-o { color: #89ddff; } /* operators */
-a-p { color: #a9b1d6; } /* punctuation */
-a-pr { color: #73daca; } /* properties */
-a-at { color: #bb9af7; } /* attributes */
-a-tg { color: #f7768e; } /* tags (HTML/XML) */
-a-m { color: #7dcfff; } /* macros */
-a-l { color: #e0af68; } /* labels */
-a-ns { color: #2ac3de; } /* namespaces/modules */
-a-cr { color: #7aa2f7; } /* constructors */
-a-tt { color: #c0caf5; font-weight: bold; } /* titles */
-a-st { font-weight: bold; } /* strong */
-a-em { } /* emphasis */
-a-tu { color: #7aa2f7; text-decoration: underline; } /* links */
-a-tl { color: #9ece6a; } /* literals */
-a-tx { text-decoration: line-through; } /* strikethrough */
-a-da { color: #9ece6a; } /* diff add */
-a-dd { color: #f7768e; } /* diff delete */
-a-eb { color: #ff9e64; } /* embedded */
-a-er { color: #f7768e; text-decoration: wavy underline; } /* errors */
-</style>"##;
+/// Generate syntax highlighting CSS with media queries for light/dark themes
+fn generate_syntax_highlight_css(light_theme_css: &str, dark_theme_css: &str) -> String {
+    format!(
+        r#"<style>
+/* Arborium syntax highlighting - Light theme */
+@media (prefers-color-scheme: light) {{
+{light_theme_css}
+}}
+
+/* Arborium syntax highlighting - Dark theme */
+@media (prefers-color-scheme: dark) {{
+{dark_theme_css}
+}}
+</style>"#
+    )
+}
 
 /// CSS for copy button on code blocks
 const COPY_BUTTON_STYLES: &str = r##"<style>
@@ -473,9 +456,10 @@ pub async fn inject_livereload_with_build_info(
 
     // Always inject copy button script and syntax highlighting styles for code blocks
     // Try to inject after <html, but fall back to after <!doctype html> if <html not found
-    let scripts_to_inject = format!(
-        "{SYNTAX_HIGHLIGHT_STYLES}{COPY_BUTTON_STYLES}{COPY_BUTTON_SCRIPT}{build_info_assets}"
-    );
+    let config = crate::config::global_config().expect("Config not initialized");
+    let syntax_css = generate_syntax_highlight_css(&config.light_theme_css, &config.dark_theme_css);
+    let scripts_to_inject =
+        format!("{syntax_css}{COPY_BUTTON_STYLES}{COPY_BUTTON_SCRIPT}{build_info_assets}");
     if result.contains("<html") {
         result = result.replacen("<html", &format!("{scripts_to_inject}<html"), 1);
     } else if let Some(pos) = result.to_lowercase().find("<!doctype html>") {

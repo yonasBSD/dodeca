@@ -23,6 +23,7 @@ mod serve;
 mod svg;
 mod template;
 mod template_host;
+mod theme_resolver;
 mod tui;
 mod tui_host;
 mod types;
@@ -255,6 +256,8 @@ fn resolve_dirs(
 
     match config {
         Some(cfg) => {
+            // Initialize global config for access from render pipeline
+            crate::config::set_global_config(cfg.clone())?;
             let content_dir = content.unwrap_or(cfg.content_dir);
             let output_dir = output.unwrap_or(cfg.output_dir);
             Ok(ResolvedBuildConfig {

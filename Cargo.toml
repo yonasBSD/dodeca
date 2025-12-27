@@ -114,6 +114,7 @@ arborium = { version = "2", features = [
     "lang-python", "lang-ruby", "lang-rust", "lang-scala", "lang-sql",
     "lang-swift", "lang-toml", "lang-typescript", "lang-yaml", "lang-zig",
 ] }
+arborium-theme = "2"
 
 # Search indexing
 pagefind = "1.4"
