@@ -7,7 +7,7 @@ use crate::db::{
 };
 use picante::PicanteResult;
 
-use crate::cells::{highlight_code, parse_and_render_markdown_cell};
+use crate::cells::{highlight_code, parse_and_render_markdown_cell, render_pikru};
 use crate::image::{self, InputFormat, OutputFormat, add_width_suffix};
 use crate::types::{HtmlBody, Route, SassContent, StaticPath, TemplateContent, Title};
 use crate::url_rewrite::rewrite_urls_in_css;
@@ -478,6 +478,29 @@ pub async fn parse_file<DB: Db>(db: &DB, source: SourceFile) -> PicanteResult<Pa
 
 /// Highlight a code block using the syntax highlighting cell
 async fn highlight_code_block_for_cell(code: &str, language: &str) -> String {
+    // Handle pikchr diagrams specially - render to SVG
+    if language == "pik" || language == "pikchr" {
+        if let Some(result) = render_pikru(code).await {
+            return match result {
+                cell_pikru_proto::PikruResult::Success { svg } => svg,
+                cell_pikru_proto::PikruResult::Error { message } => {
+                    // Render error as visible HTML
+                    format!(
+                        "<div class=\"pikru-error\" style=\"border: 2px solid red; padding: 1em; margin: 1em 0; background: #fee;\">\
+                        <strong>Pikru rendering error:</strong><pre>{}</pre></div>",
+                        html_escape_content(&message)
+                    )
+                }
+            };
+        }
+        // Fallback if pikru cell not available
+        return format!(
+            "<pre><code class=\"language-pik\">{}</code></pre>",
+            html_escape_content(code)
+        );
+    }
+
+    // Normal syntax highlighting for other languages
     if let Some(result) = highlight_code(code, language).await {
         // Wrap in pre/code tags with language class
         let lang_class = if language.is_empty() {

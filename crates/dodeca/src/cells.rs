@@ -34,6 +34,7 @@ use cell_minify_proto::{MinifierClient, MinifyResult};
 use cell_pagefind_proto::{
     SearchFile, SearchIndexInput, SearchIndexResult, SearchIndexerClient, SearchPage,
 };
+use cell_pikru_proto::{PikruProcessorClient, PikruResult};
 use cell_sass_proto::{SassCompilerClient, SassInput, SassResult};
 use cell_svgo_proto::{SvgoOptimizerClient, SvgoResult};
 use cell_webp_proto::{WebPEncodeInput, WebPProcessorClient, WebPResult};
@@ -683,6 +684,7 @@ define_cells! {
     css             => CssProcessorClient,
     js              => JsProcessorClient,
     pagefind        => SearchIndexerClient,
+    pikru           => PikruProcessorClient,
     image           => ImageProcessorClient,
     fonts           => FontProcessorClient,
     linkcheck       => LinkCheckerClient,
@@ -1931,6 +1933,36 @@ pub async fn highlight_code(code: &str, language: &str) -> Option<HighlightResul
 /// Get the syntax highlight service client, if available
 async fn syntax_highlight_client() -> Option<Arc<SyntaxHighlightServiceClient>> {
     all().await.syntax_highlight.clone()
+}
+
+// ============================================================================
+// Pikru diagram rendering cell functions
+// ============================================================================
+
+/// Render a Pikchr diagram to SVG using the pikru cell.
+///
+/// Returns the rendered SVG, or None if no service is available.
+pub async fn render_pikru(source: &str) -> Option<PikruResult> {
+    let client = pikru_client().await?;
+    tracing::debug!(
+        source_len = source.len(),
+        "render_pikru: sending RPC request"
+    );
+    match client.render(source.to_string()).await {
+        Ok(result) => {
+            tracing::debug!("render_pikru: RPC request succeeded");
+            Some(result)
+        }
+        Err(e) => {
+            tracing::warn!(error = ?e, "render_pikru: RPC request failed");
+            None
+        }
+    }
+}
+
+/// Get the pikru service client, if available
+async fn pikru_client() -> Option<Arc<PikruProcessorClient>> {
+    all().await.pikru.clone()
 }
 
 // ============================================================================

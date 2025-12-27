@@ -45,6 +45,7 @@ cell-linkcheck-proto = { path = "../../cells/cell-linkcheck-proto" }
 cell-markdown-proto = { path = "../../cells/cell-markdown-proto" }
 cell-minify-proto = { path = "../../cells/cell-minify-proto" }
 cell-pagefind-proto = { path = "../../cells/cell-pagefind-proto" }
+cell-pikru-proto = { path = "../../cells/cell-pikru-proto" }
 cell-sass-proto = { path = "../../cells/cell-sass-proto" }
 cell-svgo-proto = { path = "../../cells/cell-svgo-proto" }
 cell-tui-proto = { path = "../../cells/cell-tui-proto" }
