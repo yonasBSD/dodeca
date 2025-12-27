@@ -13,6 +13,7 @@ mod error_pages;
 mod fd_passing;
 mod file_watcher;
 mod image;
+mod init;
 mod link_checker;
 mod logging;
 mod queries;
@@ -146,12 +147,25 @@ struct StaticArgs {
     public_access: bool,
 }
 
+/// Init command arguments
+#[derive(Facet, Debug)]
+struct InitArgs {
+    /// Project name (creates directory with this name)
+    #[facet(args::positional)]
+    name: String,
+
+    /// Template to use (skips interactive selection)
+    #[facet(args::named, args::short = 't', default)]
+    template: Option<String>,
+}
+
 /// Parsed command from CLI
 enum Command {
     Build(BuildArgs),
     Serve(ServeArgs),
     Clean(CleanArgs),
     Static(StaticArgs),
+    Init(InitArgs),
 }
 
 fn print_usage() {
@@ -159,6 +173,7 @@ fn print_usage() {
     eprintln!("{}", "USAGE:".yellow());
     eprintln!("    ddc <COMMAND> [OPTIONS]\n");
     eprintln!("{}", "COMMANDS:".yellow());
+    eprintln!("    {}       Create a new project", "init".green());
     eprintln!("    {}      Build the site", "build".green());
     eprintln!(
         "    {}      Build and serve with live reload",
@@ -169,6 +184,9 @@ fn print_usage() {
         "static".green()
     );
     eprintln!("    {}      Clear all caches", "clean".green());
+    eprintln!("\n{}", "INIT OPTIONS:".yellow());
+    eprintln!("    <name>           Project name (creates directory)");
+    eprintln!("    -t, --template   Template to use (minimal, blog)");
     eprintln!("\n{}", "BUILD OPTIONS:".yellow());
     eprintln!("    [path]           Project directory");
     eprintln!("    -c, --content    Content directory");
@@ -245,6 +263,13 @@ fn parse_args() -> Result<Command> {
                 eyre!("Failed to parse static arguments")
             })?;
             Ok(Command::Static(static_args))
+        }
+        "init" => {
+            let init_args: InitArgs = facet_args::from_slice(&rest).map_err(|e| {
+                eprintln!("{:?}", miette::Report::new(e));
+                eyre!("Failed to parse init arguments")
+            })?;
+            Ok(Command::Init(init_args))
         }
 
         "--help" | "-h" | "help" => {
@@ -346,69 +371,64 @@ fn main() -> Result<()> {
     miette::set_hook(Box::new(
         |_| Box::new(miette::GraphicalReportHandler::new()),
     ))?;
+
     let command = parse_args()?;
 
+    // Single runtime for all commands
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
+
+    rt.block_on(async_main(command))
+}
+
+async fn async_main(command: Command) -> Result<()> {
     match command {
         Command::Build(args) => {
             let cfg = resolve_dirs(args.path, args.content, args.output)?;
-
-            // Build uses its own runtime so spawned cell tasks don't prevent exit.
-            // When the runtime is dropped, all spawned tasks are aborted.
-            let rt = tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()?;
-
-            rt.block_on(build_with_mini_tui(
+            build_with_mini_tui(
                 &cfg.content_dir,
                 &cfg.output_dir,
                 &cfg.skip_domains,
                 cfg.rate_limit_ms,
-            ))?;
-
-            // Runtime dropped here - spawned cell tasks are aborted
+            )
+            .await
         }
         Command::Serve(args) => {
             let cfg = resolve_dirs(args.path, args.content, args.output)?;
 
-            // Serve needs a long-running runtime
-            let rt = tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()?;
+            // Check if we should use TUI
+            use std::io::IsTerminal;
+            let use_tui = args.force_tui || (!args.no_tui && std::io::stdout().is_terminal());
 
-            rt.block_on(async {
-                // Check if we should use TUI
-                use std::io::IsTerminal;
-                let use_tui = args.force_tui || (!args.no_tui && std::io::stdout().is_terminal());
-
-                if use_tui {
-                    if args.fd_socket.is_some() {
-                        return Err(eyre!("FD passing is only supported in --no-tui mode"));
-                    }
-                    serve_with_tui(
-                        &cfg.content_dir,
-                        &cfg.output_dir,
-                        &args.address,
-                        args.port,
-                        args.open,
-                        cfg.stable_assets,
-                        args.public_access,
-                    )
-                    .await
-                } else {
-                    // Plain mode - no TUI, serve from picante
-                    logging::init_standard_tracing();
-                    serve_plain(
-                        &cfg.content_dir,
-                        &args.address,
-                        args.port,
-                        args.open,
-                        cfg.stable_assets,
-                        args.fd_socket,
-                        args.public_access,
-                    )
-                    .await
+            if use_tui {
+                if args.fd_socket.is_some() {
+                    return Err(eyre!("FD passing is only supported in --no-tui mode"));
                 }
-            })?;
+                serve_with_tui(
+                    &cfg.content_dir,
+                    &cfg.output_dir,
+                    &args.address,
+                    args.port,
+                    args.open,
+                    cfg.stable_assets,
+                    args.public_access,
+                )
+                .await
+            } else {
+                // Plain mode - no TUI, serve from picante
+                logging::init_standard_tracing();
+                serve_plain(
+                    &cfg.content_dir,
+                    &args.address,
+                    args.port,
+                    args.open,
+                    cfg.stable_assets,
+                    args.fd_socket,
+                    args.public_access,
+                )
+                .await
+            }
         }
         Command::Clean(args) => {
             // Find the project directory
@@ -433,6 +453,7 @@ fn main() -> Result<()> {
             } else {
                 println!("{}", "No caches to clear.".dimmed());
             }
+            Ok(())
         }
         Command::Static(args) => {
             let path = Utf8PathBuf::from(&args.path);
@@ -443,21 +464,17 @@ fn main() -> Result<()> {
                 return Err(eyre!("Not a directory: {}", path));
             }
 
-            let rt = tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()?;
-
-            rt.block_on(serve_static(
+            serve_static(
                 &path,
                 &args.address,
                 args.port,
                 args.open,
                 args.public_access,
-            ))?;
+            )
+            .await
         }
+        Command::Init(args) => init::run_init(args.name, args.template).await,
     }
-
-    Ok(())
 }
 
 /// Calculate total size of a directory recursively

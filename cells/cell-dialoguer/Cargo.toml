@@ -1,0 +1,22 @@
+[package]
+name = "cell-dialoguer"
+version = "0.6.1"
+edition = "2024"
+rust-version = "1.91"
+description = "Interactive terminal prompts for dodeca"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata."docs.rs"]
+rustdoc-args = ["--html-in-header", "arborium-header.html"]
+
+[[bin]]
+name = "ddc-cell-dialoguer"
+path = "src/main.rs"
+
+[dependencies]
+cell-dialoguer-proto = { path = "../cell-dialoguer-proto" }
+color-eyre.workspace = true
+dialoguer = "0.11"
+rapace-cell.workspace = true
+tokio.workspace = true

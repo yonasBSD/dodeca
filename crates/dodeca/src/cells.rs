@@ -16,6 +16,7 @@ use cell_code_execution_proto::{
     CodeExecutionResult, CodeExecutorClient, ExecuteSamplesInput, ExtractSamplesInput,
 };
 use cell_css_proto::{CssProcessorClient, CssResult};
+use cell_dialoguer_proto::DialoguerClient;
 use cell_fonts_proto::{FontAnalysis, FontProcessorClient, FontResult, SubsetFontInput};
 use cell_gingembre_proto::{
     ContextId, EvalResult, RenderResult, TemplateHostServer, TemplateRendererClient,
@@ -2349,4 +2350,58 @@ pub async fn eval_expression_cell(
             None
         }
     }
+}
+
+// ============================================================================
+// Dialoguer cell (interactive prompts)
+// ============================================================================
+
+/// Spawn the dialoguer cell and return a client.
+///
+/// This cell provides interactive terminal prompts (select, confirm).
+/// It inherits stdio to interact directly with the terminal.
+///
+/// Returns None if the cell binary is not available.
+pub async fn dialoguer_client() -> Option<DialoguerClient<AnyTransport>> {
+    use rapace::Frame;
+
+    // Spawn cell with inherited stdio for terminal access
+    let (session, _child) = spawn_cell_with_dispatcher(
+        "ddc-cell-dialoguer",
+        |_session| {
+            // No custom dispatcher needed - just use a passthrough that rejects all methods
+            |_request: Frame| {
+                Box::pin(async move {
+                    Err(rapace::RpcError::Status {
+                        code: rapace::ErrorCode::Unimplemented,
+                        message: "no methods implemented".to_string(),
+                    })
+                })
+                    as std::pin::Pin<
+                        Box<
+                            dyn std::future::Future<Output = Result<Frame, rapace::RpcError>>
+                                + Send,
+                        >,
+                    >
+            }
+        },
+        true, // inherit stdio for terminal access
+    )
+    .await?;
+
+    // Wait for the cell to be ready
+    let timeout = std::time::Duration::from_secs(5);
+    let peer_id = PEER_DIAG_INFO
+        .read()
+        .ok()?
+        .iter()
+        .find(|info| info.name == "ddc-cell-dialoguer")
+        .map(|info| info.peer_id)?;
+
+    cell_ready_registry()
+        .wait_for_all_ready(&[peer_id], timeout)
+        .await
+        .ok()?;
+
+    Some(DialoguerClient::new(session))
 }

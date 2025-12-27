@@ -76,6 +76,8 @@ tempfile = "3.24"
 
 # CLI/TUI
 crossterm = "0.29"
+dialoguer = "0.11"
+include_dir = "0.7"
 owo-colors = "4"
 ratatui = "0.30"
 structstruck = "0.5"
@@ -121,12 +123,7 @@ pagefind = "1.4"
 
 # SVG optimization (git)
 svag = { git = "https://github.com/bearcove/svag" }
-
-# WASM/browser
-dioxus = { version = "0.7", features = ["signals"] }
-dioxus-web = "0.7"
 getrandom = { version = "0.3", features = ["wasm_js"] }
-glade = { git = "https://github.com/bearcove/glade", features = ["web"] }
 js-sys = "0.3"
 tracing-wasm = "0.2"
 wasm-bindgen = "0.2"
@@ -162,6 +159,8 @@ rust-version = "1.91"
 facet = { git = "https://github.com/facet-rs/facet", branch = "main" }
 facet-args = { git = "https://github.com/facet-rs/facet", branch = "main" }
 facet-core = { git = "https://github.com/facet-rs/facet", branch = "main" }
+facet-format = { git = "https://github.com/facet-rs/facet", branch = "main" }
+facet-format-toml = { git = "https://github.com/facet-rs/facet", branch = "main" }
 facet-json = { git = "https://github.com/facet-rs/facet", branch = "main" }
 facet-kdl = { git = "https://github.com/facet-rs/facet", branch = "main" }
 facet-macro-parse = { git = "https://github.com/facet-rs/facet", branch = "main" }

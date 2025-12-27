@@ -32,6 +32,7 @@ path = "src/main.rs"
 # Internal crates
 cell-arborium-proto = { path = "../../cells/cell-arborium-proto" }
 cell-code-execution-proto = { path = "../../cells/cell-code-execution-proto" }
+cell-dialoguer-proto = { path = "../../cells/cell-dialoguer-proto" }
 cell-css-proto = { path = "../../cells/cell-css-proto" }
 cell-gingembre-proto = { path = "../../cells/cell-gingembre-proto" }
 cell-fonts-proto = { path = "../../cells/cell-fonts-proto" }
@@ -71,6 +72,7 @@ facet-value.workspace = true
 futures.workspace = true
 if-addrs.workspace = true
 ignore.workspace = true
+include_dir.workspace = true
 miette.workspace = true
 notify.workspace = true
 open.workspace = true

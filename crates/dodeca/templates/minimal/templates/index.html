@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}{{ section.title }}{% endblock %}
+
+{% block content %}
+<h1>{{ section.title }}</h1>
+{{ section.content | safe }}
+
+{% if section.subsections %}
+<hr>
+<h2>Sections</h2>
+<ul>
+{% for sub in section.subsections %}
+    <li><a href="{{ sub.permalink }}">{{ sub.title }}</a></li>
+{% endfor %}
+</ul>
+{% endif %}
+{% endblock %}

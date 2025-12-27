@@ -1,0 +1,15 @@
+[package]
+name = "cell-dialoguer-proto"
+version = "0.6.1"
+edition = "2024"
+rust-version = "1.91"
+description = "Protocol definitions for dodeca dialoguer plugin"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata."docs.rs"]
+rustdoc-args = ["--html-in-header", "arborium-header.html"]
+
+[dependencies]
+rapace.workspace = true
+facet.workspace = true

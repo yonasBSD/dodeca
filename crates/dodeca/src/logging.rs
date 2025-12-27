@@ -356,6 +356,7 @@ impl FilterHandle {
     }
 
     /// Get the current filter expression for display (if any)
+    #[allow(dead_code)]
     pub fn get_filter_expression(&self) -> Option<String> {
         self.custom_filter
             .read()
