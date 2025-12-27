@@ -57,6 +57,22 @@ impl HtmlProcessor for HtmlProcessorImpl {
             },
         }
     }
+
+    async fn inject_code_buttons(
+        &self,
+        html: String,
+        code_metadata: HashMap<String, CodeExecutionMetadata>,
+    ) -> HtmlResult {
+        match inject_code_buttons_impl(&html, &code_metadata) {
+            Ok((result, had_buttons)) => HtmlResult::SuccessWithFlag {
+                html: result,
+                flag: had_buttons,
+            },
+            Err(e) => HtmlResult::Error {
+                message: format!("Code button injection failed: {}", e),
+            },
+        }
+    }
 }
 
 // ============================================================================
@@ -383,6 +399,104 @@ fn escape_html_attr(s: &str) -> String {
         .replace('"', "&quot;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
+}
+
+// ============================================================================
+// Code Buttons Injection (copy + build info in one pass)
+// ============================================================================
+
+fn inject_code_buttons_impl(
+    html: &str,
+    code_metadata: &HashMap<String, CodeExecutionMetadata>,
+) -> Result<(String, bool)> {
+    use lol_html::html_content::ContentType;
+    use lol_html::{RewriteStrSettings, element, rewrite_str, text};
+
+    let current_code_text = Rc::new(RefCell::new(String::new()));
+    let had_buttons = Rc::new(RefCell::new(false));
+    let metadata_map = Rc::new(code_metadata.clone());
+
+    let current_code_text_ref = current_code_text.clone();
+    let had_buttons_ref = had_buttons.clone();
+
+    let result = rewrite_str(
+        html,
+        RewriteStrSettings {
+            element_content_handlers: vec![
+                element!("pre", |el| {
+                    // Add inline style for positioning (works regardless of site CSS)
+                    if let Some(existing_style) = el.get_attribute("style") {
+                        if !existing_style.contains("position") {
+                            el.set_attribute(
+                                "style",
+                                &format!("position:relative;{}", existing_style),
+                            )?;
+                        }
+                    } else {
+                        el.set_attribute("style", "position:relative")?;
+                    }
+
+                    current_code_text_ref.borrow_mut().clear();
+
+                    let code_text_ref = current_code_text_ref.clone();
+                    let had_buttons_inner = had_buttons_ref.clone();
+                    let metadata_map_ref = metadata_map.clone();
+
+                    if let Some(handlers) = el.end_tag_handlers() {
+                        let handler: lol_html::EndTagHandler<'static> = Box::new(move |end_tag| {
+                            *had_buttons_inner.borrow_mut() = true;
+
+                            // Always add copy button
+                            let copy_btn =
+                                r#"<button class="copy-btn" aria-label="Copy code">Copy</button>"#;
+
+                            // Check for build info metadata
+                            let code_text = code_text_ref.borrow();
+                            let normalized = normalize_code_for_matching(&code_text);
+
+                            let build_info_btn = if let Some(meta) =
+                                metadata_map_ref.get(&normalized)
+                            {
+                                let json = metadata_to_json(meta);
+                                let rustc_short = meta
+                                    .rustc_version
+                                    .lines()
+                                    .next()
+                                    .unwrap_or(&meta.rustc_version);
+                                format!(
+                                    r#"<button class="build-info-btn verified" aria-label="View build info" title="Verified: {}" onclick="showBuildInfoPopup({})">&#9432;</button>"#,
+                                    escape_html_attr(rustc_short),
+                                    escape_html_attr(&json)
+                                )
+                            } else {
+                                String::new()
+                            };
+
+                            end_tag.before(
+                                &format!("{}{}", build_info_btn, copy_btn),
+                                ContentType::Html,
+                            );
+                            Ok(())
+                        });
+                        handlers.push(handler);
+                    }
+                    Ok(())
+                }),
+                text!("pre code", |t| {
+                    current_code_text.borrow_mut().push_str(t.as_str());
+                    Ok(())
+                }),
+            ],
+            ..Default::default()
+        },
+    );
+
+    let had_buttons_result = *had_buttons.borrow();
+
+    match result {
+        Ok(rewritten) => Ok((rewritten, had_buttons_result)),
+        Err(e) => Err(color_eyre::eyre::eyre!("lol_html error: {:?}", e)),
+    }
 }
 
 // ============================================================================

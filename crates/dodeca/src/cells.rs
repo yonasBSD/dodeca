@@ -1865,28 +1865,31 @@ pub async fn mark_dead_links_cell(
     }
 }
 
-/// Inject build info buttons into code blocks using the cell.
+/// Inject copy buttons (and optionally build info buttons) into all pre blocks.
+///
+/// This is a single-pass operation that adds position:relative inline style
+/// and copy/build-info buttons to every pre element.
 ///
 /// Returns (modified_html, had_buttons) or None if cell not loaded.
 #[tracing::instrument(level = "debug", skip(html, code_metadata), fields(html_len = html.len(), metadata_count = code_metadata.len()))]
-pub async fn inject_build_info_cell(
+pub async fn inject_code_buttons_cell(
     html: &str,
     code_metadata: &HashMap<String, cell_html_proto::CodeExecutionMetadata>,
 ) -> Option<(String, bool)> {
     let cell = all().await.html.as_ref()?;
 
     match cell
-        .inject_build_info(html.to_string(), code_metadata.clone())
+        .inject_code_buttons(html.to_string(), code_metadata.clone())
         .await
     {
         Ok(cell_html_proto::HtmlResult::SuccessWithFlag { html, flag }) => Some((html, flag)),
         Ok(cell_html_proto::HtmlResult::Success { html }) => Some((html, false)),
         Ok(cell_html_proto::HtmlResult::Error { message }) => {
-            warn!("html inject_build_info cell error: {}", message);
+            warn!("html inject_code_buttons cell error: {}", message);
             None
         }
         Err(e) => {
-            warn!("html inject_build_info cell call failed: {:?}", e);
+            warn!("html inject_code_buttons cell call failed: {:?}", e);
             None
         }
     }

@@ -93,4 +93,18 @@ pub trait HtmlProcessor {
         html: String,
         code_metadata: HashMap<String, CodeExecutionMetadata>,
     ) -> HtmlResult;
+
+    /// Inject copy buttons (and optionally build info buttons) into all pre blocks.
+    ///
+    /// This is a single-pass operation that:
+    /// - Adds a copy button to every pre block
+    /// - Adds inline style for position:relative to pre blocks
+    /// - Optionally adds build info buttons if code_metadata matches
+    ///
+    /// Returns the modified HTML and whether any buttons were added.
+    async fn inject_code_buttons(
+        &self,
+        html: String,
+        code_metadata: HashMap<String, CodeExecutionMetadata>,
+    ) -> HtmlResult;
 }

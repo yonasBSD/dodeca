@@ -1,4 +1,4 @@
-use crate::cells::{gingembre_cell, inject_build_info_cell, render_template_cell};
+use crate::cells::{gingembre_cell, inject_code_buttons_cell, render_template_cell};
 use crate::db::current_db;
 use crate::db::{
     CodeExecutionMetadata, CodeExecutionResult, DependencySourceInfo, Heading, Page, Section,
@@ -73,7 +73,6 @@ fn generate_syntax_highlight_css(light_theme_css: &str, dark_theme_css: &str) ->
 
 /// CSS for copy button on code blocks
 const COPY_BUTTON_STYLES: &str = r##"<style>
-pre { position: relative; }
 pre .copy-btn {
     position: absolute;
     top: 0.5rem;
@@ -87,32 +86,28 @@ pre .copy-btn {
     cursor: pointer;
     opacity: 0;
     transition: opacity 0.15s;
+    z-index: 10;
 }
 pre:hover .copy-btn { opacity: 1; }
 pre .copy-btn:hover { background: rgba(80,80,95,0.95); }
 pre .copy-btn.copied { background: rgba(50,160,50,0.9); }
 </style>"##;
 
-/// JavaScript for copy button functionality
+/// JavaScript for copy button functionality - uses event delegation for all copy buttons
 const COPY_BUTTON_SCRIPT: &str = r##"<script>
-document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('pre').forEach(pre => {
-        if (pre.querySelector('.copy-btn')) return;
-        const btn = document.createElement('button');
-        btn.className = 'copy-btn';
+document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.copy-btn');
+    if (!btn) return;
+    const pre = btn.closest('pre');
+    if (!pre) return;
+    const code = pre.querySelector('code')?.textContent || pre.textContent;
+    await navigator.clipboard.writeText(code);
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
         btn.textContent = 'Copy';
-        btn.onclick = async () => {
-            const code = pre.querySelector('code')?.textContent || pre.textContent;
-            await navigator.clipboard.writeText(code);
-            btn.textContent = 'Copied!';
-            btn.classList.add('copied');
-            setTimeout(() => {
-                btn.textContent = 'Copy';
-                btn.classList.remove('copied');
-            }, 2000);
-        };
-        pre.appendChild(btn);
-    });
+        btn.classList.remove('copied');
+    }, 2000);
 });
 </script>"##;
 
@@ -132,6 +127,7 @@ pre .build-info-btn {
     opacity: 0;
     transition: opacity 0.15s;
     line-height: 1;
+    z-index: 10;
 }
 pre:hover .build-info-btn { opacity: 1; }
 pre .build-info-btn:hover { background: rgba(255,255,255,0.2); }
@@ -400,16 +396,13 @@ fn build_code_metadata_map(
     map
 }
 
-/// Inject build info buttons into code blocks using the html cell
-async fn inject_build_info_buttons(
+/// Inject copy buttons and build info buttons into code blocks using the html cell.
+/// This is a single-pass operation that also sets position:relative inline on pre elements.
+async fn inject_code_buttons(
     html: &str,
     code_metadata: &HashMap<String, cell_html_proto::CodeExecutionMetadata>,
 ) -> (String, bool) {
-    if code_metadata.is_empty() {
-        return (html.to_string(), false);
-    }
-
-    match inject_build_info_cell(html, code_metadata).await {
+    match inject_code_buttons_cell(html, code_metadata).await {
         Some((result, had_buttons)) => (result, had_buttons),
         None => (html.to_string(), false),
     }
@@ -442,13 +435,13 @@ pub async fn inject_livereload_with_build_info(
         has_dead_links = had_dead;
     }
 
-    // Build the code metadata map and inject buttons into code blocks
+    // Build the code metadata map and inject buttons (copy + build info) into code blocks
     let code_metadata = build_code_metadata_map(code_execution_results);
-    let (with_buttons, had_build_info) = inject_build_info_buttons(&result, &code_metadata).await;
+    let (with_buttons, _) = inject_code_buttons(&result, &code_metadata).await;
     result = with_buttons;
 
-    // Only include build info styles and popup script if we actually injected buttons
-    let build_info_assets = if had_build_info {
+    // Only include build info popup script if we have code execution results
+    let build_info_assets = if !code_execution_results.is_empty() {
         format!("{BUILD_INFO_STYLES}{BUILD_INFO_POPUP_SCRIPT}")
     } else {
         String::new()
@@ -1340,7 +1333,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_inject_build_info_buttons() {
+    async fn test_inject_code_buttons_with_build_info() {
         // Note: This test requires the html cell to be running
         // Without the cell, the function returns the original HTML with no buttons
         let html = r#"<html><body><pre><code>fn main() {}</code></pre></body></html>"#;
@@ -1363,14 +1356,18 @@ mod tests {
         let results = vec![make_test_result("fn main() {}", Some(metadata))];
 
         let code_metadata = build_code_metadata_map(&results);
-        let (result, had_buttons) = inject_build_info_buttons(html, &code_metadata).await;
+        let (result, had_buttons) = inject_code_buttons(html, &code_metadata).await;
 
-        // With cell: buttons are injected
+        // With cell: buttons are injected (copy + build info)
         // Without cell: returns original HTML
         if had_buttons {
             assert!(
+                result.contains(r#"class="copy-btn""#),
+                "Should contain copy button"
+            );
+            assert!(
                 result.contains(r#"class="build-info-btn verified""#),
-                "Should contain button"
+                "Should contain build info button"
             );
             assert!(
                 result.contains("showBuildInfoPopup"),
@@ -1380,13 +1377,17 @@ mod tests {
                 result.contains("rustc 1.83.0-nightly"),
                 "Should contain rustc version in title"
             );
+            assert!(
+                result.contains(r#"style="position:relative""#),
+                "Should have inline position:relative"
+            );
         } else {
             assert_eq!(result, html, "Without cell, HTML should be unchanged");
         }
     }
 
     #[tokio::test]
-    async fn test_inject_build_info_buttons_no_match() {
+    async fn test_inject_code_buttons_no_build_info_match() {
         // Note: This test requires the html cell to be running
         let html = r#"<html><body><pre><code>fn other() {}</code></pre></body></html>"#;
 
@@ -1405,27 +1406,40 @@ mod tests {
         let results = vec![make_test_result("fn main() {}", Some(metadata))];
 
         let code_metadata = build_code_metadata_map(&results);
-        let (result, had_buttons) = inject_build_info_buttons(html, &code_metadata).await;
+        let (result, had_buttons) = inject_code_buttons(html, &code_metadata).await;
 
-        // Even with cell, no match means no buttons
-        assert!(!had_buttons, "Should not have injected buttons");
-        assert!(
-            !result.contains("build-info-btn"),
-            "Should not contain button"
-        );
+        // Copy button should still be added, but no build-info button
+        if had_buttons {
+            assert!(
+                result.contains(r#"class="copy-btn""#),
+                "Should contain copy button"
+            );
+            assert!(
+                !result.contains("build-info-btn"),
+                "Should not contain build info button"
+            );
+        }
     }
 
     #[tokio::test]
-    async fn test_inject_build_info_buttons_empty_metadata() {
+    async fn test_inject_code_buttons_empty_metadata() {
         let html = r#"<html><body><pre><code>fn main() {}</code></pre></body></html>"#;
 
         let code_metadata: HashMap<String, cell_html_proto::CodeExecutionMetadata> = HashMap::new();
-        let (result, had_buttons) = inject_build_info_buttons(html, &code_metadata).await;
+        let (result, had_buttons) = inject_code_buttons(html, &code_metadata).await;
 
-        assert!(
-            !had_buttons,
-            "Should not have injected buttons with empty metadata"
-        );
-        assert_eq!(result, html, "HTML should be unchanged");
+        // Copy button should still be added even with no build info
+        if had_buttons {
+            assert!(
+                result.contains(r#"class="copy-btn""#),
+                "Should contain copy button"
+            );
+            assert!(
+                !result.contains("build-info-btn"),
+                "Should not contain build info button"
+            );
+        } else {
+            assert_eq!(result, html, "Without cell, HTML should be unchanged");
+        }
     }
 }
