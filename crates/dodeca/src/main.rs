@@ -962,9 +962,6 @@ pub async fn build(
         p.update(|prog| prog.parse.start(ctx.sources.len()));
     }
 
-    // Set the current database for cell-based rendering
-    crate::db::set_current_db(ctx.db.clone());
-
     // THE query - produces all outputs (fonts are automatically subsetted)
     let site_output = build_site(&*ctx.db).await?;
 
@@ -1272,9 +1269,6 @@ async fn build_with_mini_tui(
 
     tracing::info!("Building...");
 
-    // Set the current database for cell-based rendering
-    crate::db::set_current_db(ctx.db.clone());
-
     // Run the build query
     let site_output = build_site(&*ctx.db).await?;
 
@@ -1531,8 +1525,8 @@ fn handle_file_changed(
                     .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                     .map(|d| d.as_secs() as i64)
                     .unwrap_or(0);
-                let db = server.db.lock().unwrap();
-                let mut sources = SourceRegistry::sources(&*db)
+                let db = &*server.db;
+                let mut sources = SourceRegistry::sources(db)
                     .ok()
                     .flatten()
                     .unwrap_or_default();
@@ -1542,19 +1536,18 @@ fn handle_file_changed(
 
                 // Find and replace existing, or add new
                 if let Some(pos) = sources.iter().position(|s| {
-                    s.path(&*db)
+                    s.path(db)
                         .ok()
                         .map(|p| p.as_str() == relative_str)
                         .unwrap_or(false)
                 }) {
                     // Replace with new version (picante inputs are immutable after creation)
                     tracing::debug!(relative = %relative, "handle_file_changed: updating existing source file");
-                    sources[pos] =
-                        SourceFile::new(&*db, source_path, source_content, last_modified)
-                            .expect("failed to create source file");
+                    sources[pos] = SourceFile::new(db, source_path, source_content, last_modified)
+                        .expect("failed to create source file");
                 } else {
                     tracing::debug!(relative = %relative, "handle_file_changed: adding new source file");
-                    let source = SourceFile::new(&*db, source_path, source_content, last_modified)
+                    let source = SourceFile::new(db, source_path, source_content, last_modified)
                         .expect("failed to create source file");
                     sources.push(source);
                     println!("  {} Added new source: {}", "+".green(), relative);
@@ -1563,13 +1556,13 @@ fn handle_file_changed(
                     count = sources.len(),
                     "handle_file_changed: setting SourceRegistry (triggers picante invalidation)"
                 );
-                SourceRegistry::set(&*db, sources).expect("failed to set sources");
+                SourceRegistry::set(db, sources).expect("failed to set sources");
             }
         }
         PathCategory::Template => {
             if let Ok(content) = fs::read_to_string(path) {
-                let db = server.db.lock().unwrap();
-                let mut templates = TemplateRegistry::templates(&*db)
+                let db = &*server.db;
+                let mut templates = TemplateRegistry::templates(db)
                     .ok()
                     .flatten()
                     .unwrap_or_default();
@@ -1578,45 +1571,45 @@ fn handle_file_changed(
                 let template_content = TemplateContent::new(content);
 
                 if let Some(pos) = templates.iter().position(|t| {
-                    t.path(&*db)
+                    t.path(db)
                         .ok()
                         .map(|p| p.as_str() == relative_str)
                         .unwrap_or(false)
                 }) {
-                    templates[pos] = TemplateFile::new(&*db, template_path, template_content)
+                    templates[pos] = TemplateFile::new(db, template_path, template_content)
                         .expect("failed to create template file");
                 } else {
-                    let template = TemplateFile::new(&*db, template_path, template_content)
+                    let template = TemplateFile::new(db, template_path, template_content)
                         .expect("failed to create template file");
                     templates.push(template);
                     println!("  {} Added new template: {}", "+".green(), relative);
                 }
-                TemplateRegistry::set(&*db, templates).expect("failed to set templates");
+                TemplateRegistry::set(db, templates).expect("failed to set templates");
             }
         }
         PathCategory::Sass => {
             if let Ok(content) = fs::read_to_string(path) {
-                let db = server.db.lock().unwrap();
-                let mut sass_files = SassRegistry::files(&*db).ok().flatten().unwrap_or_default();
+                let db = &*server.db;
+                let mut sass_files = SassRegistry::files(db).ok().flatten().unwrap_or_default();
                 let relative_str = relative.to_string();
                 let sass_path = SassPath::new(relative_str.clone());
                 let sass_content = SassContent::new(content);
 
                 if let Some(pos) = sass_files.iter().position(|s| {
-                    s.path(&*db)
+                    s.path(db)
                         .ok()
                         .map(|p| p.as_str() == relative_str)
                         .unwrap_or(false)
                 }) {
-                    sass_files[pos] = SassFile::new(&*db, sass_path, sass_content)
+                    sass_files[pos] = SassFile::new(db, sass_path, sass_content)
                         .expect("failed to create sass file");
                 } else {
-                    let sass = SassFile::new(&*db, sass_path, sass_content)
+                    let sass = SassFile::new(db, sass_path, sass_content)
                         .expect("failed to create sass file");
                     sass_files.push(sass);
                     println!("  {} Added new sass: {}", "+".green(), relative);
                 }
-                SassRegistry::set(&*db, sass_files).expect("failed to set sass files");
+                SassRegistry::set(db, sass_files).expect("failed to set sass files");
             }
         }
         PathCategory::Static => {
@@ -1625,55 +1618,52 @@ fn handle_file_changed(
                 if content.is_empty() {
                     return;
                 }
-                let db = server.db.lock().unwrap();
-                let mut static_files = StaticRegistry::files(&*db)
-                    .ok()
-                    .flatten()
-                    .unwrap_or_default();
+                let db = &*server.db;
+                let mut static_files = StaticRegistry::files(db).ok().flatten().unwrap_or_default();
                 let relative_str = relative.to_string();
                 let static_path = StaticPath::new(relative_str.clone());
 
                 if let Some(pos) = static_files.iter().position(|s| {
-                    s.path(&*db)
+                    s.path(db)
                         .ok()
                         .map(|p| p.as_str() == relative_str)
                         .unwrap_or(false)
                 }) {
                     tracing::debug!(path = %relative_str, size = content.len(), "Replacing static file");
-                    static_files[pos] = StaticFile::new(&*db, static_path, content)
+                    static_files[pos] = StaticFile::new(db, static_path, content)
                         .expect("failed to create static file");
                 } else {
-                    let static_file = StaticFile::new(&*db, static_path, content)
+                    let static_file = StaticFile::new(db, static_path, content)
                         .expect("failed to create static file");
                     static_files.push(static_file);
                     println!("  {} Added new static file: {}", "+".green(), relative);
                 }
-                StaticRegistry::set(&*db, static_files).expect("failed to set static files");
+                StaticRegistry::set(db, static_files).expect("failed to set static files");
             }
         }
         PathCategory::Data => {
             if let Ok(content) = fs::read_to_string(path) {
-                let db = server.db.lock().unwrap();
-                let mut data_files = DataRegistry::files(&*db).ok().flatten().unwrap_or_default();
+                let db = &*server.db;
+                let mut data_files = DataRegistry::files(db).ok().flatten().unwrap_or_default();
                 let relative_str = relative.to_string();
                 let data_path = DataPath::new(relative_str.clone());
                 let data_content = DataContent::new(content);
 
                 if let Some(pos) = data_files.iter().position(|d| {
-                    d.path(&*db)
+                    d.path(db)
                         .ok()
                         .map(|p| p.as_str() == relative_str)
                         .unwrap_or(false)
                 }) {
-                    data_files[pos] = DataFile::new(&*db, data_path, data_content)
+                    data_files[pos] = DataFile::new(db, data_path, data_content)
                         .expect("failed to create data file");
                 } else {
-                    let data_file = DataFile::new(&*db, data_path, data_content)
+                    let data_file = DataFile::new(db, data_path, data_content)
                         .expect("failed to create data file");
                     data_files.push(data_file);
                     println!("  {} Added new data file: {}", "+".green(), relative);
                 }
-                DataRegistry::set(&*db, data_files).expect("failed to set data files");
+                DataRegistry::set(db, data_files).expect("failed to set data files");
             }
         }
         PathCategory::Unknown => (), // Unknown files don't need picante updates
@@ -1698,77 +1688,74 @@ fn handle_file_removed(
 
     match category {
         PathCategory::Content => {
-            let db = server.db.lock().unwrap();
-            let mut sources = SourceRegistry::sources(&*db)
+            let db = &*server.db;
+            let mut sources = SourceRegistry::sources(db)
                 .ok()
                 .flatten()
                 .unwrap_or_default();
             if let Some(pos) = sources.iter().position(|s| {
-                s.path(&*db)
+                s.path(db)
                     .ok()
                     .map(|p| p.as_str() == relative_str)
                     .unwrap_or(false)
             }) {
                 sources.remove(pos);
-                SourceRegistry::set(&*db, sources).expect("failed to set sources");
+                SourceRegistry::set(db, sources).expect("failed to set sources");
             }
         }
         PathCategory::Template => {
-            let db = server.db.lock().unwrap();
-            let mut templates = TemplateRegistry::templates(&*db)
+            let db = &*server.db;
+            let mut templates = TemplateRegistry::templates(db)
                 .ok()
                 .flatten()
                 .unwrap_or_default();
             if let Some(pos) = templates.iter().position(|t| {
-                t.path(&*db)
+                t.path(db)
                     .ok()
                     .map(|p| p.as_str() == relative_str)
                     .unwrap_or(false)
             }) {
                 templates.remove(pos);
-                TemplateRegistry::set(&*db, templates).expect("failed to set templates");
+                TemplateRegistry::set(db, templates).expect("failed to set templates");
             }
         }
         PathCategory::Sass => {
-            let db = server.db.lock().unwrap();
-            let mut sass_files = SassRegistry::files(&*db).ok().flatten().unwrap_or_default();
+            let db = &*server.db;
+            let mut sass_files = SassRegistry::files(db).ok().flatten().unwrap_or_default();
             if let Some(pos) = sass_files.iter().position(|s| {
-                s.path(&*db)
+                s.path(db)
                     .ok()
                     .map(|p| p.as_str() == relative_str)
                     .unwrap_or(false)
             }) {
                 sass_files.remove(pos);
-                SassRegistry::set(&*db, sass_files).expect("failed to set sass files");
+                SassRegistry::set(db, sass_files).expect("failed to set sass files");
             }
         }
         PathCategory::Static => {
-            let db = server.db.lock().unwrap();
-            let mut static_files = StaticRegistry::files(&*db)
-                .ok()
-                .flatten()
-                .unwrap_or_default();
+            let db = &*server.db;
+            let mut static_files = StaticRegistry::files(db).ok().flatten().unwrap_or_default();
             if let Some(pos) = static_files.iter().position(|s| {
-                s.path(&*db)
+                s.path(db)
                     .ok()
                     .map(|p| p.as_str() == relative_str)
                     .unwrap_or(false)
             }) {
                 static_files.remove(pos);
-                StaticRegistry::set(&*db, static_files).expect("failed to set static files");
+                StaticRegistry::set(db, static_files).expect("failed to set static files");
             }
         }
         PathCategory::Data => {
-            let db = server.db.lock().unwrap();
-            let mut data_files = DataRegistry::files(&*db).ok().flatten().unwrap_or_default();
+            let db = &*server.db;
+            let mut data_files = DataRegistry::files(db).ok().flatten().unwrap_or_default();
             if let Some(pos) = data_files.iter().position(|d| {
-                d.path(&*db)
+                d.path(db)
                     .ok()
                     .map(|p| p.as_str() == relative_str)
                     .unwrap_or(false)
             }) {
                 data_files.remove(pos);
-                DataRegistry::set(&*db, data_files).expect("failed to set data files");
+                DataRegistry::set(db, data_files).expect("failed to set data files");
             }
         }
         PathCategory::Unknown => {}
@@ -1888,15 +1875,20 @@ async fn start_file_watcher(
                     }
                 }
 
-                server_apply.trigger_reload();
-                if let Some(cb) = &after_apply {
-                    cb();
-                }
+                (server_apply, after_apply)
             })
             .await;
 
-            if let Err(e) = apply_result {
-                tracing::error!(error = %e, "file watcher apply task failed");
+            match apply_result {
+                Ok((server_apply, after_apply)) => {
+                    server_apply.trigger_reload().await;
+                    if let Some(cb) = &after_apply {
+                        cb();
+                    }
+                }
+                Err(e) => {
+                    tracing::error!(error = %e, "file watcher apply task failed");
+                }
             }
 
             if let Some(token) = token {
@@ -2042,7 +2034,7 @@ async fn serve_plain(
         .collect();
 
     {
-        let db = server.db.lock().unwrap();
+        let db = &*server.db;
         let mut sources = Vec::new();
 
         for path in &md_files {
@@ -2059,10 +2051,9 @@ async fn serve_plain(
 
             let source_path = SourcePath::new(relative);
             let source_content = SourceContent::new(content);
-            let source = SourceFile::new(&*db, source_path, source_content, last_modified)?;
+            let source = SourceFile::new(db, source_path, source_content, last_modified)?;
             sources.push(source);
         }
-        drop(db);
         server.set_sources(sources);
     }
     println!("  Loaded {} source files", md_files.len());
@@ -2085,7 +2076,7 @@ async fn serve_plain(
             .filter_map(|e| Utf8PathBuf::from_path_buf(e.into_path()).ok())
             .collect();
 
-        let db = server.db.lock().unwrap();
+        let db = &*server.db;
         let mut templates = Vec::new();
 
         for path in &template_files {
@@ -2097,11 +2088,10 @@ async fn serve_plain(
 
             let template_path = TemplatePath::new(relative);
             let template_content = TemplateContent::new(content);
-            let template = TemplateFile::new(&*db, template_path, template_content)?;
+            let template = TemplateFile::new(db, template_path, template_content)?;
             templates.push(template);
         }
         let count = templates.len();
-        drop(db);
         server.set_templates(templates);
         println!("  Loaded {} templates", count);
     }
@@ -2110,7 +2100,7 @@ async fn serve_plain(
     let static_dir = parent_dir.join("static");
     if static_dir.exists() {
         let walker = WalkBuilder::new(&static_dir).build();
-        let db = server.db.lock().unwrap();
+        let db = &*server.db;
         let mut static_files = Vec::new();
 
         for entry in walker {
@@ -2123,12 +2113,11 @@ async fn serve_plain(
                 let content = fs::read(path)?;
 
                 let static_path = StaticPath::new(relative.to_string());
-                let static_file = StaticFile::new(&*db, static_path, content)?;
+                let static_file = StaticFile::new(db, static_path, content)?;
                 static_files.push(static_file);
             }
         }
         let count = static_files.len();
-        drop(db);
         server.set_static_files(static_files);
         println!("  Loaded {count} static files");
     }
@@ -2137,7 +2126,7 @@ async fn serve_plain(
     let data_dir = parent_dir.join("data");
     if data_dir.exists() {
         let walker = WalkBuilder::new(&data_dir).build();
-        let db = server.db.lock().unwrap();
+        let db = &*server.db;
         let mut data_files = Vec::new();
 
         for entry in walker {
@@ -2153,13 +2142,12 @@ async fn serve_plain(
                     let content = fs::read_to_string(path)?;
 
                     let data_path = DataPath::new(relative.to_string());
-                    let data_file = DataFile::new(&*db, data_path, DataContent::new(content))?;
+                    let data_file = DataFile::new(db, data_path, DataContent::new(content))?;
                     data_files.push(data_file);
                 }
             }
         }
         let count = data_files.len();
-        drop(db);
         server.set_data_files(data_files);
         println!("  Loaded {count} data files");
     }
@@ -2180,7 +2168,7 @@ async fn serve_plain(
             .filter_map(|e| Utf8PathBuf::from_path_buf(e.into_path()).ok())
             .collect();
 
-        let db = server.db.lock().unwrap();
+        let db = &*server.db;
         let mut sass_files = Vec::new();
 
         for path in &sass_files_list {
@@ -2192,11 +2180,10 @@ async fn serve_plain(
 
             let sass_path = SassPath::new(relative);
             let sass_content = SassContent::new(content);
-            let sass_file = SassFile::new(&*db, sass_path, sass_content)?;
+            let sass_file = SassFile::new(db, sass_path, sass_content)?;
             sass_files.push(sass_file);
         }
         let count = sass_files.len();
-        drop(db);
         server.set_sass_files(sass_files);
         println!("  Loaded {} SASS files", count);
     }
@@ -2317,11 +2304,7 @@ fn rebuild_search_for_serve(server: &serve::SiteServer) -> Result<search::Search
 
     #[allow(clippy::await_holding_lock)] // Intentional - creating snapshot while holding lock
     rt.block_on(async {
-        // Snapshot pattern: lock, snapshot, release, then query the snapshot
-        let snapshot = {
-            let db = server.db.lock().map_err(|_| eyre!("db lock poisoned"))?;
-            db::DatabaseSnapshot::from_database(&db).await
-        };
+        let snapshot = db::DatabaseSnapshot::from_database(&server.db).await;
 
         // Build the site (picante will cache/reuse unchanged computations)
         let site_output = queries::build_site(&snapshot).await?;
@@ -2484,7 +2467,7 @@ async fn serve_with_tui(
         // Get current sources BEFORE locking db to avoid deadlock
         // (get_sources() also locks db internally)
         let mut sources = server.get_sources();
-        let db = server.db.lock().unwrap();
+        let db = &*server.db;
 
         for path in &md_files {
             let content = fs::read_to_string(path)?;
@@ -2500,10 +2483,9 @@ async fn serve_with_tui(
 
             let source_path = SourcePath::new(relative);
             let source_content = SourceContent::new(content);
-            let source = SourceFile::new(&*db, source_path, source_content, last_modified)?;
+            let source = SourceFile::new(db, source_path, source_content, last_modified)?;
             sources.push(source);
         }
-        drop(db);
         server.set_sources(sources);
     }
 
@@ -2533,7 +2515,7 @@ async fn serve_with_tui(
 
         // Get current templates BEFORE locking db to avoid deadlock
         let mut templates = server.get_templates();
-        let db = server.db.lock().unwrap();
+        let db = &*server.db;
 
         for path in &template_files {
             let content = fs::read_to_string(path)?;
@@ -2544,12 +2526,11 @@ async fn serve_with_tui(
 
             let template_path = TemplatePath::new(relative);
             let template_content = TemplateContent::new(content);
-            let template = TemplateFile::new(&*db, template_path, template_content)?;
+            let template = TemplateFile::new(db, template_path, template_content)?;
             templates.push(template);
         }
 
         let count = templates.len();
-        drop(db);
         server.set_templates(templates);
 
         let _ = event_tx.send(LogEvent::build(format!("Loaded {} templates", count)));
@@ -2561,7 +2542,7 @@ async fn serve_with_tui(
         let walker = WalkBuilder::new(&static_dir).build();
         // Get current static files BEFORE locking db to avoid deadlock
         let mut static_files = server.get_static_files();
-        let db = server.db.lock().unwrap();
+        let db = &*server.db;
         let mut count = 0;
 
         for entry in walker {
@@ -2574,13 +2555,12 @@ async fn serve_with_tui(
                 let content = fs::read(path)?;
 
                 let static_path = StaticPath::new(relative.to_string());
-                let static_file = StaticFile::new(&*db, static_path, content)?;
+                let static_file = StaticFile::new(db, static_path, content)?;
                 static_files.push(static_file);
                 count += 1;
             }
         }
 
-        drop(db);
         server.set_static_files(static_files);
         let _ = event_tx.send(LogEvent::build(format!("Loaded {count} static files")));
     }
@@ -2603,7 +2583,7 @@ async fn serve_with_tui(
 
         // Get current sass files BEFORE locking db to avoid deadlock
         let mut sass_files = server.get_sass_files();
-        let db = server.db.lock().unwrap();
+        let db = &*server.db;
 
         for path in &sass_files_list {
             let content = fs::read_to_string(path)?;
@@ -2614,12 +2594,11 @@ async fn serve_with_tui(
 
             let sass_path = SassPath::new(relative);
             let sass_content = SassContent::new(content);
-            let sass_file = SassFile::new(&*db, sass_path, sass_content)?;
+            let sass_file = SassFile::new(db, sass_path, sass_content)?;
             sass_files.push(sass_file);
         }
 
         let count = sass_files.len();
-        drop(db);
         server.set_sass_files(sass_files);
 
         let _ = event_tx.send(LogEvent::build(format!("Loaded {} SASS files", count)));

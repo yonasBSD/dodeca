@@ -1,8 +1,7 @@
 use crate::cells::{gingembre_cell, inject_code_buttons_cell, render_template_cell};
-use crate::db::current_db;
 use crate::db::{
-    CodeExecutionMetadata, CodeExecutionResult, DependencySourceInfo, Heading, Page, Section,
-    SiteTree,
+    CodeExecutionMetadata, CodeExecutionResult, Database, DependencySourceInfo, Heading, Page,
+    Section, SiteTree,
 };
 use crate::error_pages::render_error_page;
 use crate::template::{
@@ -759,9 +758,10 @@ pub async fn try_render_page_via_cell(
     page: &Page,
     site_tree: &SiteTree,
     templates: HashMap<String, String>,
+    db: Option<Arc<Database>>,
 ) -> std::result::Result<String, String> {
     // Check if cell is available and we have a database
-    let db = match (gingembre_cell().await, current_db()) {
+    let db = match (gingembre_cell().await, db) {
         (Some(_), Some(db)) => db,
         _ => {
             // Fall back to direct rendering
@@ -795,9 +795,10 @@ pub async fn try_render_section_via_cell(
     section: &Section,
     site_tree: &SiteTree,
     templates: HashMap<String, String>,
+    db: Option<Arc<Database>>,
 ) -> std::result::Result<String, String> {
     // Check if cell is available and we have a database
-    let db = match (gingembre_cell().await, current_db()) {
+    let db = match (gingembre_cell().await, db) {
         (Some(_), Some(db)) => db,
         _ => {
             // Fall back to direct rendering
@@ -839,8 +840,9 @@ pub async fn render_page_via_cell(
     page: &Page,
     site_tree: &SiteTree,
     templates: HashMap<String, String>,
+    db: Option<Arc<Database>>,
 ) -> String {
-    try_render_page_via_cell(page, site_tree, templates)
+    try_render_page_via_cell(page, site_tree, templates, db)
         .await
         .unwrap_or_else(|e| render_error_page(&e))
 }
@@ -850,8 +852,9 @@ pub async fn render_section_via_cell(
     section: &Section,
     site_tree: &SiteTree,
     templates: HashMap<String, String>,
+    db: Option<Arc<Database>>,
 ) -> String {
-    try_render_section_via_cell(section, site_tree, templates)
+    try_render_section_via_cell(section, site_tree, templates, db)
         .await
         .unwrap_or_else(|e| render_error_page(&e))
 }

@@ -301,7 +301,7 @@ pub fn content_hash_32(data: &[u8]) -> InputHash {
 pub fn get_cached_image(content_hash: &InputHash) -> Option<ProcessedImages> {
     let path = blob_path(content_hash, "img")?;
     let data = fs::read(&path).ok()?;
-    postcard::from_bytes(&data).ok()
+    facet_postcard::from_slice(&data).ok()
 }
 
 /// Store processed images by input content hash
@@ -309,7 +309,7 @@ pub fn put_cached_image(content_hash: &InputHash, images: &ProcessedImages) {
     let Some(path) = blob_path(content_hash, "img") else {
         return;
     };
-    let Ok(data) = postcard::to_allocvec(images) else {
+    let Ok(data) = facet_postcard::to_vec(images) else {
         return;
     };
 

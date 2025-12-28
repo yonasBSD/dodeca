@@ -12,7 +12,7 @@ use cell_tui_proto::{
     ServerStatus, TaskProgress, TaskStatus, TuiHost, TuiHostServer,
 };
 use eyre::Result;
-use futures::StreamExt;
+use futures_util::StreamExt;
 use rapace::Session;
 use rapace::Streaming;
 use tokio::sync::{broadcast, mpsc, watch};
@@ -136,7 +136,7 @@ impl TuiHost for TuiHostImpl {
                 Err(BroadcastStreamRecvError::Lagged(_)) => None,
             }
         });
-        let stream = futures::stream::iter(history.into_iter().map(Ok)).chain(live);
+        let stream = futures_util::stream::iter(history.into_iter().map(Ok)).chain(live);
         Box::pin(stream) as Streaming<LogEvent>
     }
 
@@ -366,7 +366,7 @@ fn record_event(history: &Arc<Mutex<VecDeque<LogEvent>>>, event: LogEvent) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::StreamExt;
+    use futures_util::StreamExt;
 
     #[tokio::test]
     async fn progress_and_status_are_retained_without_subscribers() {

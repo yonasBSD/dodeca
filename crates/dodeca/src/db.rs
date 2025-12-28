@@ -2,7 +2,6 @@ use crate::types::{
     DataContent, DataPath, HtmlBody, Route, SassContent, SassPath, SourceContent, SourcePath,
     StaticPath, TemplateContent, TemplatePath, Title,
 };
-use futures::FutureExt;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -325,7 +324,7 @@ pub enum ExternalLinkStatus {
 }
 
 /// A single image variant (one format, one size)
-#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, facet::Facet)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, facet::Facet)]
 pub struct ImageVariant {
     /// The encoded image data
     pub data: Vec<u8>,
@@ -336,7 +335,7 @@ pub struct ImageVariant {
 }
 
 /// Result of processing an image into responsive formats (JXL + WebP)
-#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, facet::Facet)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, facet::Facet)]
 pub struct ProcessedImages {
     /// Original image width
     pub original_width: u32,
@@ -428,27 +427,4 @@ pub struct AllRenderedHtml {
 pub struct Database {
     /// Optional stats tracking
     pub stats: Option<Arc<QueryStats>>,
-}
-
-// ============================================================================
-// Global database Arc for cell-based rendering
-// ============================================================================
-
-use tokio::sync::OnceCell;
-
-/// Global database Arc for the current build.
-/// This is set during build_full/build_serve and used by cell-based rendering.
-static CURRENT_DB: OnceCell<Arc<Database>> = OnceCell::const_new();
-
-/// Set the current database Arc for cell-based rendering.
-/// This should be called at the start of a build.
-pub fn set_current_db(db: Arc<Database>) {
-    // We use get_or_init since OnceCell doesn't have a set method
-    // In practice, this is called once per process
-    let _ = CURRENT_DB.get_or_init(|| async { db }).now_or_never();
-}
-
-/// Get the current database Arc if set.
-pub fn current_db() -> Option<Arc<Database>> {
-    CURRENT_DB.get().cloned()
 }

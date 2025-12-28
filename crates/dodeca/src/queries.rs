@@ -13,7 +13,7 @@ use crate::types::{HtmlBody, Route, SassContent, StaticPath, TemplateContent, Ti
 use crate::url_rewrite::rewrite_urls_in_css;
 use facet::Facet;
 use facet_value::Value;
-use futures::future::BoxFuture;
+use futures_util::future::BoxFuture;
 use std::collections::{BTreeMap, HashMap};
 
 /// Load a template file's content - tracked for dependency tracking
@@ -439,7 +439,7 @@ pub async fn parse_file<DB: Db>(db: &DB, source: SourceFile) -> PicanteResult<Pa
             .iter()
             .map(|cb| highlight_code_block_for_cell(&cb.code, &cb.language))
             .collect();
-        let highlighted_blocks = futures::future::join_all(highlight_futures).await;
+        let highlighted_blocks = futures_util::future::join_all(highlight_futures).await;
 
         // Replace placeholders with highlighted code
         for (cb, highlighted_html) in parsed.code_blocks.iter().zip(highlighted_blocks) {
@@ -661,7 +661,9 @@ pub async fn render_page<DB: Db>(db: &DB, route: Route) -> PicanteResult<Rendere
         .expect("Page not found for route");
 
     // Try cell-based rendering (falls back to direct if cell unavailable)
-    let html = render_page_via_cell(page, &site_tree, templates.clone()).await;
+    // Note: passing None for db means it will fall back to direct rendering
+    // TODO: thread Arc<Database> through when we refactor the query system
+    let html = render_page_via_cell(page, &site_tree, templates.clone(), None).await;
 
     // Check if we got an error (cell unavailable) and need to fallback
     if html.contains(crate::render::RENDER_ERROR_MARKER) {
@@ -701,7 +703,9 @@ pub async fn render_section<DB: Db>(db: &DB, route: Route) -> PicanteResult<Rend
         .expect("Section not found for route");
 
     // Try cell-based rendering (falls back to direct if cell unavailable)
-    let html = render_section_via_cell(section, &site_tree, templates.clone()).await;
+    // Note: passing None for db means it will fall back to direct rendering
+    // TODO: thread Arc<Database> through when we refactor the query system
+    let html = render_section_via_cell(section, &site_tree, templates.clone(), None).await;
 
     // Check if we got an error (cell unavailable) and need to fallback
     if html.contains(crate::render::RENDER_ERROR_MARKER) {

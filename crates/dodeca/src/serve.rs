@@ -7,9 +7,8 @@
 pub const PICANTE_CACHE_VERSION: u32 = 4;
 
 use eyre::Result;
-use futures::future::FutureExt;
 use std::collections::HashMap;
-use std::sync::{Mutex, RwLock};
+use std::sync::{Arc, RwLock};
 use tokio::sync::{broadcast, watch};
 
 use crate::db::{
@@ -252,9 +251,7 @@ fn summarize_patches(patches: &[dodeca_protocol::Patch]) -> String {
 /// Shared state for the dev server
 pub struct SiteServer {
     /// The picante database - all queries go through here
-    /// Uses Mutex because Database contains RefCell (not Sync).
-    /// For queries, we use snapshot pattern: lock, clone, release, then query the clone.
-    pub db: Mutex<Database>,
+    pub db: Arc<Database>,
     /// Search index files (pagefind): path -> content
     pub search_files: RwLock<HashMap<String, Vec<u8>>>,
     /// Live reload broadcast
@@ -287,7 +284,7 @@ impl SiteServer {
         });
 
         Self {
-            db: Mutex::new(db),
+            db: Arc::new(db),
             search_files: RwLock::new(HashMap::new()),
             livereload_tx,
             render_options,
@@ -391,69 +388,60 @@ impl SiteServer {
     /// Update the source registry with a new list of sources
     /// This invalidates all queries that depend on sources
     pub fn set_sources(&self, sources: Vec<SourceFile>) {
-        let db = self.db.lock().unwrap();
-        SourceRegistry::set(&*db, sources).expect("failed to set sources");
+        SourceRegistry::set(&*self.db, sources).expect("failed to set sources");
     }
 
     /// Update the template registry with a new list of templates
     pub fn set_templates(&self, templates: Vec<TemplateFile>) {
-        let db = self.db.lock().unwrap();
-        TemplateRegistry::set(&*db, templates).expect("failed to set templates");
+        TemplateRegistry::set(&*self.db, templates).expect("failed to set templates");
     }
 
     /// Update the sass registry with a new list of sass files
     pub fn set_sass_files(&self, files: Vec<SassFile>) {
-        let db = self.db.lock().unwrap();
-        SassRegistry::set(&*db, files).expect("failed to set sass files");
+        SassRegistry::set(&*self.db, files).expect("failed to set sass files");
     }
 
     /// Update the static registry with a new list of static files
     pub fn set_static_files(&self, files: Vec<StaticFile>) {
-        let db = self.db.lock().unwrap();
-        StaticRegistry::set(&*db, files).expect("failed to set static files");
+        StaticRegistry::set(&*self.db, files).expect("failed to set static files");
     }
 
     /// Update the data registry with a new list of data files
     pub fn set_data_files(&self, files: Vec<DataFile>) {
-        let db = self.db.lock().unwrap();
-        DataRegistry::set(&*db, files).expect("failed to set data files");
+        DataRegistry::set(&*self.db, files).expect("failed to set data files");
     }
 
     /// Get a clone of the current sources (for modification)
     pub fn get_sources(&self) -> Vec<SourceFile> {
-        let db = self.db.lock().unwrap();
-        SourceRegistry::sources(&*db)
+        SourceRegistry::sources(&*self.db)
             .expect("failed to get sources")
             .unwrap_or_default()
     }
 
     /// Get a clone of the current templates (for modification)
     pub fn get_templates(&self) -> Vec<TemplateFile> {
-        let db = self.db.lock().unwrap();
-        TemplateRegistry::templates(&*db)
+        TemplateRegistry::templates(&*self.db)
             .expect("failed to get templates")
             .unwrap_or_default()
     }
 
     /// Get a clone of the current sass files (for modification)
     pub fn get_sass_files(&self) -> Vec<SassFile> {
-        let db = self.db.lock().unwrap();
-        SassRegistry::files(&*db)
+        SassRegistry::files(&*self.db)
             .expect("failed to get sass files")
             .unwrap_or_default()
     }
 
     /// Get a clone of the current static files (for modification)
     pub fn get_static_files(&self) -> Vec<StaticFile> {
-        let db = self.db.lock().unwrap();
-        StaticRegistry::files(&*db)
+        StaticRegistry::files(&*self.db)
             .expect("failed to get static files")
             .unwrap_or_default()
     }
 
     /// Notify all connected browsers to reload
     /// Computes patches for all cached routes and sends them
-    pub fn trigger_reload(&self) {
+    pub async fn trigger_reload(&self) {
         use crate::cells::diff_html_cell;
 
         // Check for CSS changes first
@@ -461,7 +449,7 @@ impl SiteServer {
             let cache = self.css_cache.read().unwrap();
             cache.clone()
         };
-        let new_css_path = self.get_current_css_path();
+        let new_css_path = self.get_current_css_path().await;
         let css_changed = old_css_path != new_css_path;
 
         if css_changed {
@@ -505,11 +493,10 @@ impl SiteServer {
 
             // Get new HTML (re-render) - this creates a fresh snapshot
             tracing::debug!("trigger_reload: re-rendering {}", route);
-            let new_html =
-                futures::executor::block_on(self.find_content(&route)).and_then(|c| match c {
-                    ServeContent::Html(html) => Some(html),
-                    _ => None,
-                });
+            let new_html = self.find_content(&route).await.and_then(|c| match c {
+                ServeContent::Html(html) => Some(html),
+                _ => None,
+            });
 
             // Handle case where route was deleted (old exists, new doesn't)
             if old_html.is_some() && new_html.is_none() {
@@ -553,7 +540,7 @@ impl SiteServer {
                     }
 
                     // Try to diff using the cell
-                    match futures::executor::block_on(diff_html_cell(&old, &new)) {
+                    match diff_html_cell(&old, &new).await {
                         Some(diff_result) => {
                             if diff_result.patches.is_empty() {
                                 // DOM structure identical but HTML differs (whitespace/comments?)
@@ -610,14 +597,9 @@ impl SiteServer {
     }
 
     /// Get current CSS path from database
-    fn get_current_css_path(&self) -> Option<String> {
-        let snapshot = {
-            let db = self.db.lock().ok()?;
-            futures::executor::block_on(DatabaseSnapshot::from_database(&db))
-        };
-        let css = futures::executor::block_on(css_output(&snapshot))
-            .ok()
-            .flatten()?;
+    async fn get_current_css_path(&self) -> Option<String> {
+        let snapshot = DatabaseSnapshot::from_database(&self.db).await;
+        let css = css_output(&snapshot).await.ok().flatten()?;
         Some(format!("/{}", css.cache_busted_path))
     }
 
@@ -668,15 +650,7 @@ impl SiteServer {
     /// Find content for a given path using lazy picante queries
     async fn find_content(&self, path: &str) -> Option<ServeContent> {
         tracing::debug!(path, "find_content: called");
-        // Snapshot pattern: create snapshot while holding lock (sync), then release
-        // Note: from_database is async but doesn't await internally, so we use now_or_never()
-        // to avoid nested block_on calls (which panic in futures-executor)
-        let snapshot = {
-            let db = self.db.lock().ok()?;
-            DatabaseSnapshot::from_database(&db)
-                .now_or_never()
-                .expect("from_database should complete immediately")
-        };
+        let snapshot = DatabaseSnapshot::from_database(&self.db).await;
         tracing::debug!(path, "find_content: got database snapshot");
 
         // Get known routes for dead link detection (only in dev mode)
@@ -897,18 +871,7 @@ impl SiteServer {
     pub async fn get_scope_for_route(&self, route_path: &str, path: &[String]) -> Vec<ScopeEntry> {
         use facet_value::{VObject, VString};
 
-        // Snapshot pattern: create snapshot while holding lock (sync), then release
-        // Note: from_database is async but doesn't await internally, so we use now_or_never()
-        // to avoid nested block_on calls (which panic in futures-executor)
-        let snapshot = {
-            let db = match self.db.lock() {
-                Ok(db) => db,
-                Err(_) => return vec![],
-            };
-            DatabaseSnapshot::from_database(&db)
-                .now_or_never()
-                .expect("from_database should complete immediately")
-        };
+        let snapshot = DatabaseSnapshot::from_database(&self.db).await;
 
         let site_tree = match build_tree(&snapshot).await {
             Ok(Ok(tree)) => tree,
@@ -1091,15 +1054,7 @@ impl SiteServer {
     ) -> Result<ScopeValue, String> {
         use facet_value::{VObject, VString};
 
-        // Snapshot pattern: create snapshot while holding lock (sync), then release
-        // Note: from_database is async but doesn't await internally, so we use now_or_never()
-        // to avoid nested block_on calls (which panic in futures-executor)
-        let snapshot = match self.db.lock() {
-            Ok(db) => DatabaseSnapshot::from_database(&db)
-                .now_or_never()
-                .expect("from_database should complete immediately"),
-            Err(_) => return Err("Failed to acquire database lock".to_string()),
-        };
+        let snapshot = DatabaseSnapshot::from_database(&self.db).await;
 
         let site_tree = build_tree(&snapshot)
             .await
@@ -1247,14 +1202,7 @@ impl SiteServer {
 
     /// Find routes similar to the requested path (for 404 suggestions)
     pub async fn find_similar_routes(&self, path: &str) -> Vec<(String, String)> {
-        // Snapshot pattern: create snapshot while holding lock (sync), then release
-        // Note: from_database is async but doesn't await internally, so we use now_or_never()
-        let snapshot = match self.db.lock() {
-            Ok(db) => DatabaseSnapshot::from_database(&db)
-                .now_or_never()
-                .expect("from_database should complete immediately"),
-            Err(_) => return Vec::new(),
-        };
+        let snapshot = DatabaseSnapshot::from_database(&self.db).await;
 
         let site_tree = match build_tree(&snapshot).await {
             Ok(Ok(tree)) => tree,
