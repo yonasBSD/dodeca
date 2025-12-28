@@ -963,7 +963,9 @@ pub async fn build(
     }
 
     // THE query - produces all outputs (fonts are automatically subsetted)
-    let site_output = build_site(&*ctx.db).await?;
+    let site_output = db::TASK_DB
+        .scope(ctx.db_arc(), build_site(&*ctx.db))
+        .await?;
 
     // Code execution validation
     let failed_executions: Vec<_> = site_output
@@ -1270,7 +1272,9 @@ async fn build_with_mini_tui(
     tracing::info!("Building...");
 
     // Run the build query
-    let site_output = build_site(&*ctx.db).await?;
+    let site_output = db::TASK_DB
+        .scope(ctx.db_arc(), build_site(&*ctx.db))
+        .await?;
 
     // Code execution validation
     let failed_executions: Vec<_> = site_output
@@ -2307,7 +2311,9 @@ fn rebuild_search_for_serve(server: &serve::SiteServer) -> Result<search::Search
         let snapshot = db::DatabaseSnapshot::from_database(&server.db).await;
 
         // Build the site (picante will cache/reuse unchanged computations)
-        let site_output = queries::build_site(&snapshot).await?;
+        let site_output = db::TASK_DB
+            .scope(server.db.clone(), queries::build_site(&snapshot))
+            .await?;
 
         // Cache code execution results for build info display in serve mode
         server.set_code_execution_results(site_output.code_execution_results.clone());

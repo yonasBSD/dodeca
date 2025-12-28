@@ -3,6 +3,12 @@ use crate::types::{
     StaticPath, TemplateContent, TemplatePath, Title,
 };
 use std::sync::Arc;
+
+tokio::task_local! {
+    /// Task-local storage for the current database Arc.
+    /// Set at the start of a request, used by render functions.
+    pub static TASK_DB: Arc<Database>;
+}
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// Statistics about query execution

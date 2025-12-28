@@ -661,9 +661,7 @@ pub async fn render_page<DB: Db>(db: &DB, route: Route) -> PicanteResult<Rendere
         .expect("Page not found for route");
 
     // Try cell-based rendering (falls back to direct if cell unavailable)
-    // Note: passing None for db means it will fall back to direct rendering
-    // TODO: thread Arc<Database> through when we refactor the query system
-    let html = render_page_via_cell(page, &site_tree, templates.clone(), None).await;
+    let html = render_page_via_cell(page, &site_tree, templates.clone()).await;
 
     // Check if we got an error (cell unavailable) and need to fallback
     if html.contains(crate::render::RENDER_ERROR_MARKER) {
@@ -703,9 +701,7 @@ pub async fn render_section<DB: Db>(db: &DB, route: Route) -> PicanteResult<Rend
         .expect("Section not found for route");
 
     // Try cell-based rendering (falls back to direct if cell unavailable)
-    // Note: passing None for db means it will fall back to direct rendering
-    // TODO: thread Arc<Database> through when we refactor the query system
-    let html = render_section_via_cell(section, &site_tree, templates.clone(), None).await;
+    let html = render_section_via_cell(section, &site_tree, templates.clone()).await;
 
     // Check if we got an error (cell unavailable) and need to fallback
     if html.contains(crate::render::RENDER_ERROR_MARKER) {
