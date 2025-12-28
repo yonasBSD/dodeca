@@ -39,6 +39,8 @@ impl TcpTunnel for TcpTunnelImpl {
                     hyper_util::rt::TokioIo::new(stream),
                     hyper_util::service::TowerToHyperService::new(service),
                 )
+                // Enable WebSocket upgrades - keeps connection alive after 101 response
+                .with_upgrades()
                 .await
             {
                 tracing::warn!(

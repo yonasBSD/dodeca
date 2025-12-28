@@ -18,7 +18,9 @@ use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use tokio::sync::watch;
 
-use cell_http_proto::{ContentServiceServer, TcpTunnelClient};
+use cell_http_proto::{
+    ContentServiceServer, TcpTunnelClient, TunnelHandle, WebSocketTunnel, WebSocketTunnelServer,
+};
 use rapace_cell::CellLifecycleServer;
 use rapace_tracing::TracingSinkServer;
 
@@ -125,13 +127,217 @@ impl TracingSink for ForwardingTracingSink {
     }
 }
 
-/// Create a multi-service dispatcher that handles TracingSink, CellLifecycle, and ContentService.
+// ============================================================================
+// HostWebSocketTunnel - handles devtools WebSocket tunnel from cell
+// ============================================================================
+
+/// Host-side implementation of WebSocketTunnel for devtools connections.
+///
+/// When the cell receives a WebSocket connection at /_/ws, it calls this service
+/// to open a tunnel back to the host. The host then handles the devtools protocol
+/// (ClientMessage/ServerMessage) and forwards LiveReload broadcasts.
+#[derive(Clone)]
+pub struct HostWebSocketTunnel {
+    session: Arc<Session>,
+    server: Arc<SiteServer>,
+}
+
+impl HostWebSocketTunnel {
+    pub fn new(session: Arc<Session>, server: Arc<SiteServer>) -> Self {
+        Self { session, server }
+    }
+}
+
+impl WebSocketTunnel for HostWebSocketTunnel {
+    async fn open(&self) -> TunnelHandle {
+        // Allocate a new tunnel channel
+        let (handle, stream) = self.session.open_tunnel_stream();
+        let channel_id = handle.channel_id;
+        tracing::info!(
+            channel_id,
+            "DevTools WebSocket tunnel opened on host, returning handle to cell"
+        );
+
+        // Spawn a task to handle the devtools protocol on this tunnel
+        let server = self.server.clone();
+        tokio::spawn(async move {
+            use futures_util::FutureExt;
+            tracing::info!(channel_id, "DevTools tunnel handler task spawned");
+            let result =
+                std::panic::AssertUnwindSafe(handle_devtools_tunnel(channel_id, stream, server))
+                    .catch_unwind()
+                    .await;
+            match result {
+                Ok(()) => tracing::info!(channel_id, "DevTools tunnel handler task ended normally"),
+                Err(e) => {
+                    tracing::error!(channel_id, "DevTools tunnel handler task PANICKED: {:?}", e)
+                }
+            }
+        });
+
+        TunnelHandle { channel_id }
+    }
+}
+
+/// Handle a devtools tunnel connection.
+///
+/// This reads ClientMessage from the tunnel and sends ServerMessage back.
+/// It also subscribes to LiveReload broadcasts and forwards them.
+async fn handle_devtools_tunnel(
+    channel_id: u32,
+    stream: rapace::TunnelStream<rapace::AnyTransport>,
+    server: Arc<SiteServer>,
+) {
+    use dodeca_protocol::{ClientMessage, ServerMessage, facet_postcard};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    tracing::info!(channel_id, "DevTools tunnel handler starting");
+
+    // Subscribe to livereload broadcasts
+    let mut livereload_rx = server.livereload_tx.subscribe();
+    tracing::debug!(channel_id, "Subscribed to livereload broadcasts");
+
+    // Split the tunnel stream for concurrent read/write
+    let (mut read_half, mut write_half) = tokio::io::split(stream);
+    tracing::debug!(channel_id, "Split tunnel stream into read/write halves");
+
+    // Buffer for reading messages
+    let mut read_buf = vec![0u8; 64 * 1024];
+
+    // Send any existing errors to the newly connected client
+    let current_errors = server.get_current_errors();
+    tracing::debug!(
+        channel_id,
+        error_count = current_errors.len(),
+        "Sending existing errors to client"
+    );
+    for error in current_errors {
+        let msg = ServerMessage::Error(error);
+        if let Ok(bytes) = facet_postcard::to_vec(&msg) {
+            tracing::debug!(
+                channel_id,
+                bytes_len = bytes.len(),
+                "Writing error message to tunnel"
+            );
+            let _ = write_half.write_all(&bytes).await;
+        }
+    }
+
+    tracing::info!(channel_id, "Entering main loop, waiting for messages...");
+
+    loop {
+        tokio::select! {
+            // Handle incoming messages from the cell (browser -> host)
+            result = read_half.read(&mut read_buf) => {
+                tracing::debug!(channel_id, "read_half.read returned: {:?}", result.as_ref().map(|n| *n));
+                match result {
+                    Ok(0) => {
+                        tracing::info!(channel_id, "DevTools tunnel closed (EOF)");
+                        break;
+                    }
+                    Ok(n) => {
+                        let bytes = &read_buf[..n];
+                        match facet_postcard::from_slice::<ClientMessage>(bytes) {
+                            Ok(msg) => {
+                                tracing::debug!(channel_id, "Received client message: {:?}", msg);
+                                match msg {
+                                    ClientMessage::Route { path } => {
+                                        tracing::debug!(channel_id, route = %path, "Client viewing route");
+                                        // Could track which routes are being viewed
+                                    }
+                                    ClientMessage::GetScope { request_id, snapshot_id, path } => {
+                                        let route = snapshot_id.unwrap_or_else(|| "/".to_string());
+                                        let path = path.unwrap_or_default();
+                                        let scope = server.get_scope_for_route(&route, &path).await;
+                                        let response = ServerMessage::ScopeResponse { request_id, scope };
+                                        if let Ok(bytes) = facet_postcard::to_vec(&response) {
+                                            let _ = write_half.write_all(&bytes).await;
+                                        }
+                                    }
+                                    ClientMessage::Eval { request_id, snapshot_id, expression } => {
+                                        let result = match server.eval_expression_for_route(&snapshot_id, &expression).await {
+                                            Ok(value) => dodeca_protocol::EvalResult::Ok(value),
+                                            Err(e) => dodeca_protocol::EvalResult::Err(e),
+                                        };
+                                        let response = ServerMessage::EvalResponse { request_id, result };
+                                        if let Ok(bytes) = facet_postcard::to_vec(&response) {
+                                            let _ = write_half.write_all(&bytes).await;
+                                        }
+                                    }
+                                    ClientMessage::DismissError { route } => {
+                                        tracing::debug!(channel_id, route = %route, "Client dismissed error");
+                                        // Could remove from current_errors
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                tracing::warn!(channel_id, "Failed to parse client message: {:?}", e);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!(channel_id, error = %e, "DevTools tunnel read error");
+                        break;
+                    }
+                }
+            }
+
+            // Handle LiveReload broadcasts (host -> browser)
+            result = livereload_rx.recv() => {
+                match result {
+                    Ok(msg) => {
+                        let server_msg = match msg {
+                            crate::serve::LiveReloadMsg::Reload => ServerMessage::Reload,
+                            crate::serve::LiveReloadMsg::CssUpdate { path } => ServerMessage::CssChanged { path },
+                            crate::serve::LiveReloadMsg::Patches { route: _, patches } => ServerMessage::Patches(patches),
+                            crate::serve::LiveReloadMsg::Error { route, message, template, line, snapshot_id } => {
+                                ServerMessage::Error(dodeca_protocol::ErrorInfo {
+                                    route,
+                                    message,
+                                    template,
+                                    line,
+                                    column: None,
+                                    source_snippet: None,
+                                    snapshot_id,
+                                    available_variables: vec![],
+                                })
+                            }
+                            crate::serve::LiveReloadMsg::ErrorResolved { route } => {
+                                ServerMessage::ErrorResolved { route }
+                            }
+                        };
+                        if let Ok(bytes) = facet_postcard::to_vec(&server_msg) {
+                            if write_half.write_all(&bytes).await.is_err() {
+                                tracing::warn!(channel_id, "Failed to send LiveReload message");
+                                break;
+                            }
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                        tracing::warn!(channel_id, lagged = n, "LiveReload receiver lagged");
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                        tracing::info!(channel_id, "LiveReload channel closed");
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    tracing::info!(channel_id, "DevTools tunnel handler finished");
+}
+
+/// Create a multi-service dispatcher that handles TracingSink, CellLifecycle, ContentService,
+/// and WebSocketTunnel.
 ///
 /// Method IDs are globally unique hashes, so we try each service in turn.
 /// The correct one will succeed, the others will return "unknown method_id".
 #[allow(clippy::type_complexity)]
 fn create_http_cell_dispatcher(
     content_service: Arc<HostContentService>,
+    session: Arc<Session>,
+    server: Arc<SiteServer>,
 ) -> impl Fn(Frame) -> Pin<Box<dyn std::future::Future<Output = Result<Frame, RpcError>> + Send>>
 + Send
 + Sync
@@ -146,6 +352,8 @@ fn create_http_cell_dispatcher(
         let tracing_sink = tracing_sink.clone();
         let lifecycle_registry = lifecycle_registry.clone();
         let buffer_pool = buffer_pool.clone();
+        let session = session.clone();
+        let server = server.clone();
         let method_id = frame.desc.method_id;
 
         Box::pin(async move {
@@ -168,11 +376,32 @@ fn create_http_cell_dispatcher(
                 return Ok(response);
             }
 
-            // Try ContentService
-            let content_server = ContentServiceServer::new((*content_service).clone());
-            content_server
+            // Try WebSocketTunnel service (for devtools)
+            let ws_tunnel_impl = HostWebSocketTunnel::new(session, server);
+            let ws_tunnel_server = WebSocketTunnelServer::new(ws_tunnel_impl);
+            if let Ok(response) = ws_tunnel_server
                 .dispatch(method_id, &frame, &buffer_pool)
                 .await
+            {
+                return Ok(response);
+            }
+
+            // Try ContentService
+            let content_server = ContentServiceServer::new((*content_service).clone());
+            match content_server
+                .dispatch(method_id, &frame, &buffer_pool)
+                .await
+            {
+                Ok(response) => Ok(response),
+                Err(e) => {
+                    tracing::warn!(
+                        method_id,
+                        "RPC dispatch failed for all services (TracingSink, CellLifecycle, WebSocketTunnel, ContentService): {:?}",
+                        e
+                    );
+                    Err(e)
+                }
+            }
         })
     }
 }
@@ -345,12 +574,33 @@ pub async fn start_cell_server_with_shutdown(
 
     tracing::debug!("HTTP cell connected via hub");
 
+    // Push tracing filter to the http cell so its logs are forwarded
+    {
+        let filter_str = std::env::var("RUST_LOG")
+            .unwrap_or_else(|_| crate::logging::DEFAULT_TRACING_FILTER.to_string());
+        let session_for_tracing = session.clone();
+        tokio::spawn(async move {
+            let tracing_config_client =
+                rapace_tracing::TracingConfigClient::new(session_for_tracing);
+            if let Err(e) = tracing_config_client.set_filter(filter_str.clone()).await {
+                tracing::warn!("Failed to push filter to http cell: {:?}", e);
+            } else {
+                tracing::debug!("Pushed filter to http cell: {}", filter_str);
+            }
+        });
+    }
+
     // Create the ContentService implementation
     let content_service = Arc::new(HostContentService::new(server.clone()));
 
     // Set up multi-service dispatcher on the http cell's session
     // This replaces the basic dispatcher from cells.rs with one that includes ContentService
-    session.set_dispatcher(create_http_cell_dispatcher(content_service));
+    // and WebSocketTunnel for devtools
+    session.set_dispatcher(create_http_cell_dispatcher(
+        content_service,
+        session.clone(),
+        server.clone(),
+    ));
 
     // Signal that the session is ready
     let _ = session_tx.send(Some(session.clone()));

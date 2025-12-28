@@ -161,8 +161,9 @@ fn preprocess_rules(markdown: &str) -> Result<(String, Vec<RuleDefinition>), Str
             });
 
             // Emit rule HTML directly (will pass through pulldown_cmark as raw HTML)
+            // Add blank line after to ensure following text becomes a proper paragraph
             result.push_str(&rule_to_html(rule_id, &anchor_id));
-            result.push('\n');
+            result.push_str("\n\n");
         } else {
             result.push_str(line);
             result.push('\n');

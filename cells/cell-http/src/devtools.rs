@@ -25,9 +25,17 @@ pub async fn ws_handler(
 }
 
 async fn handle_socket(socket: WebSocket, ctx: Arc<CellContext>) {
+    tracing::info!("DevTools WebSocket connection received, opening tunnel to host...");
+
     // Open a WebSocket tunnel to the host
     let handle = match ctx.ws_tunnel_client().open().await {
-        Ok(h) => h,
+        Ok(h) => {
+            tracing::info!(
+                "WebSocket tunnel opened successfully, channel_id={}",
+                h.channel_id
+            );
+            h
+        }
         Err(e) => {
             tracing::error!("Failed to open WebSocket tunnel to host: {:?}", e);
             return;

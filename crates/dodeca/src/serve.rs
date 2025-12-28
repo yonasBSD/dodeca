@@ -375,6 +375,16 @@ impl SiteServer {
         self.revision_tx.borrow().generation
     }
 
+    /// Get a snapshot of current errors (for sending to newly connected devtools clients)
+    pub fn get_current_errors(&self) -> Vec<dodeca_protocol::ErrorInfo> {
+        self.current_errors
+            .read()
+            .unwrap()
+            .values()
+            .cloned()
+            .collect()
+    }
+
     /// Update cached code execution results
     pub fn set_code_execution_results(&self, results: Vec<crate::db::CodeExecutionResult>) {
         *self.code_execution_results.write().unwrap() = results;
