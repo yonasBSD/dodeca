@@ -1,7 +1,7 @@
 //! Protocol definitions for the dodeca TUI cell.
 //!
-//! The TUI is a "reverse cell" - dodeca hosts the `TuiHost` service,
-//! and the TUI binary connects to subscribe to streams and send commands.
+//! Dodeca hosts the `TuiHost` service, allowing the TUI cell to subscribe
+//! to streams and send commands back.
 
 use rapace::Streaming;
 

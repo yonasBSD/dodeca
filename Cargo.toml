@@ -142,7 +142,7 @@ libc = "0.2"
 passfd = "0.1"
 rapidhash = "4"
 socket2 = "0.6"
-strid = "3.0"
+strid = "4.0"
 
 # Misc utilities
 open = "5"
