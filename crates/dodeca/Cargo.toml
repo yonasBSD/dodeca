@@ -15,12 +15,6 @@ default-run = "ddc"
 [package.metadata.docs.rs]
 rustdoc-args = ["--html-in-header", "arborium-header.html"]
 
-[package.metadata.wix]
-upgrade-guid = "F32CA0D7-4DDE-4333-A5EA-374211B0C136"
-path-guid = "68C82E46-C932-4CA9-BEE0-216F988EADF9"
-license = false
-eula = false
-
 [package.metadata."docs.rs"]
 rustdoc-args = ["--html-in-header", "arborium-header.html"]
 
