@@ -944,6 +944,73 @@ enum CellPathSource {
     DevFallback,
 }
 
+/// Check if we're running in development mode (executable is in a target/ directory
+/// within a Cargo workspace).
+///
+/// Returns the workspace root if we're in dev mode, None otherwise.
+#[cfg(debug_assertions)]
+fn detect_dev_mode() -> Option<PathBuf> {
+    let exe_path = std::env::current_exe().ok()?;
+    let exe_path_str = exe_path.to_string_lossy();
+
+    // Check if we're in a target/debug or target/release directory
+    if !exe_path_str.contains("/target/debug/") && !exe_path_str.contains("/target/release/") {
+        return None;
+    }
+
+    // Walk up from target/debug to find workspace root
+    let mut dir = exe_path.as_path();
+    loop {
+        if let Some(parent) = dir.parent() {
+            let cargo_toml = parent.join("Cargo.toml");
+            if cargo_toml.exists() {
+                // Check if it's a workspace root
+                if let Ok(contents) = std::fs::read_to_string(&cargo_toml) {
+                    if contents.contains("[workspace]") {
+                        return Some(parent.to_path_buf());
+                    }
+                }
+            }
+            dir = parent;
+        } else {
+            return None;
+        }
+    }
+}
+
+/// Rebuild all binaries when running in development mode.
+///
+/// This ensures cell binaries are always in sync with the main binary,
+/// avoiding version mismatches that can cause deserialization errors.
+#[cfg(debug_assertions)]
+fn dev_rebuild_cells(workspace_root: &Path) {
+    use std::process::Command as StdCommand;
+
+    info!(
+        workspace = %workspace_root.display(),
+        "Development mode: rebuilding cell binaries to ensure version consistency"
+    );
+
+    // Run cargo build --bins
+    let status = StdCommand::new("cargo")
+        .arg("build")
+        .arg("--bins")
+        .current_dir(workspace_root)
+        .status();
+
+    match status {
+        Ok(s) if s.success() => {
+            debug!("dev rebuild: cargo build --bins succeeded");
+        }
+        Ok(s) => {
+            warn!("dev rebuild: cargo build --bins failed with status {}", s);
+        }
+        Err(e) => {
+            warn!("dev rebuild: failed to run cargo: {}", e);
+        }
+    }
+}
+
 impl std::fmt::Display for CellPathSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -963,6 +1030,14 @@ impl std::fmt::Display for CellPathSource {
 /// 3. "cells/" subdirectory next to executable
 /// 4. Development fallback (target/debug or target/release)
 fn resolve_cell_directory() -> Option<(PathBuf, CellPathSource)> {
+    // In development mode (debug build running from target/ in a workspace),
+    // rebuild all binaries to ensure version consistency. This prevents issues
+    // where the main binary and cells have mismatched serialization formats.
+    #[cfg(debug_assertions)]
+    if let Some(workspace_root) = detect_dev_mode() {
+        dev_rebuild_cells(&workspace_root);
+    }
+
     // If DODECA_CELL_PATH is set, use it exclusively - don't fall back
     if let Ok(env_path) = std::env::var("DODECA_CELL_PATH") {
         let path = PathBuf::from(&env_path);
