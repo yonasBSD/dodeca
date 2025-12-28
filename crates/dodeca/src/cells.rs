@@ -558,6 +558,14 @@ fn find_cell_binary(binary_name: &str) -> Option<PathBuf> {
     #[cfg(not(target_os = "windows"))]
     let executable = binary_name.to_string();
 
+    // Try DODECA_CELL_PATH first (consistent with resolve_cell_path)
+    if let Ok(env_path) = std::env::var("DODECA_CELL_PATH") {
+        let path = PathBuf::from(&env_path).join(&executable);
+        if path.exists() {
+            return Some(path);
+        }
+    }
+
     // Try adjacent to current exe
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(dir) = exe_path.parent() {
@@ -2078,6 +2086,8 @@ pub struct ParsedMarkdown {
     pub headings: Vec<cell_markdown_proto::Heading>,
     /// Code blocks that need syntax highlighting
     pub code_blocks: Vec<cell_markdown_proto::CodeBlock>,
+    /// Rule definitions for specification traceability
+    pub rules: Vec<cell_markdown_proto::RuleDefinition>,
 }
 
 /// Error from markdown parsing
@@ -2153,11 +2163,13 @@ pub async fn parse_and_render_markdown_cell(
             html,
             headings,
             code_blocks,
+            rules,
         }) => Ok(ParsedMarkdown {
             frontmatter,
             html,
             headings,
             code_blocks,
+            rules,
         }),
         Ok(ParseResult::Error { message }) => Err(MarkdownParseError::ParseError(message)),
         Err(e) => Err(MarkdownParseError::CellCallFailed(format!("{:?}", e))),
@@ -2166,6 +2178,7 @@ pub async fn parse_and_render_markdown_cell(
 
 /// Render markdown to HTML using the cell (without frontmatter parsing).
 #[tracing::instrument(level = "debug", skip(markdown), fields(markdown_len = markdown.len()))]
+#[allow(clippy::type_complexity)]
 async fn _render_markdown_cell(
     source_path: &str,
     markdown: &str,
@@ -2173,6 +2186,7 @@ async fn _render_markdown_cell(
     String,
     Vec<cell_markdown_proto::Heading>,
     Vec<cell_markdown_proto::CodeBlock>,
+    Vec<cell_markdown_proto::RuleDefinition>,
 )> {
     let cell = all().await.markdown.as_ref()?;
 
@@ -2184,7 +2198,8 @@ async fn _render_markdown_cell(
             html,
             headings,
             code_blocks,
-        }) => Some((html, headings, code_blocks)),
+            rules,
+        }) => Some((html, headings, code_blocks, rules)),
         Ok(MarkdownResult::Error { message }) => {
             warn!("markdown render cell error: {}", message);
             None
@@ -2268,9 +2283,16 @@ impl ServiceDispatch for TemplateHostService {
 ///
 /// This must be called after the hub is initialized but before any render calls.
 pub async fn init_gingembre_cell() -> Option<()> {
-    let (hub, _hub_path) = get_hub().await?;
+    tracing::info!("init_gingembre_cell: starting");
+    let (hub, _hub_path) = get_hub().await.or_else(|| {
+        tracing::warn!("init_gingembre_cell: no hub available");
+        None
+    })?;
 
-    let binary_path = find_cell_binary("ddc-cell-gingembre")?;
+    let binary_path = find_cell_binary("ddc-cell-gingembre").or_else(|| {
+        tracing::warn!("init_gingembre_cell: could not find ddc-cell-gingembre binary");
+        None
+    })?;
     let binary_name = "ddc-cell-gingembre";
 
     let result = spawn_cell_core(&binary_path, binary_name, &hub, &CellSpawnConfig::default())?;
