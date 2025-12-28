@@ -11,3 +11,7 @@ perf-*.data
 *.zst
 *.log
 .handoffs
+
+# Browser tests
+browser-tests/node_modules/
+browser-tests/test-results/

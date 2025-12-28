@@ -1376,6 +1376,63 @@ pub fn build_ci_workflow(platform: CiPlatform) -> Workflow {
                 ]),
         );
 
+        // Browser tests (Linux only) - tests livereload and DOM patching in real browser
+        if target.triple == "x86_64-unknown-linux-gnu" {
+            let browser_tests_job_id = format!("browser-tests-{short}");
+            let mut browser_tests_needs = vec![ddc_job_id.clone(), wasm_job_id.clone()];
+            browser_tests_needs.extend(cell_group_needs.clone());
+
+            jobs.insert(
+                browser_tests_job_id.clone(),
+                Job::with_runner(target.runs_on())
+                    .name(format!("Browser Tests ({short})"))
+                    .timeout(30)
+                    .needs(browser_tests_needs)
+                    .steps([
+                        checkout(platform),
+                        // Download ddc
+                        Step::uses("Download ddc", platform.download_artifact_action())
+                            .with_inputs([("name", format!("ddc-{short}")), ("path", "dist".into())]),
+                        // Download cells
+                        Step::uses("Download cells", platform.download_artifact_action()).with_inputs(
+                            [
+                                ("pattern", format!("cells-{short}-*")),
+                                ("path", "dist".into()),
+                                ("merge-multiple", "true".into()),
+                            ],
+                        ),
+                        Step::run(
+                            "Flatten cell directories",
+                            "find dist -mindepth 2 -type f -exec mv -t dist {} + 2>/dev/null || true; \
+                             find dist -mindepth 1 -type d -empty -delete 2>/dev/null || true",
+                        ),
+                        // Download WASM devtools
+                        Step::uses("Download WASM", platform.download_artifact_action()).with_inputs([
+                            ("name", wasm_artifact.clone()),
+                            ("path", "crates/dodeca-devtools/pkg".into()),
+                        ]),
+                        Step::run("Prepare binaries", "chmod +x dist/ddc* && ls -la dist/"),
+                        // Setup Node.js for Playwright
+                        Step::uses("Setup Node.js", "actions/setup-node@v4")
+                            .with_inputs([("node-version", "20")]),
+                        // Install Playwright dependencies
+                        Step::run(
+                            "Install browser test dependencies",
+                            "cd browser-tests && npm ci && npx playwright install chromium --with-deps",
+                        ),
+                        // Run browser tests
+                        Step::run(
+                            "Run browser tests",
+                            "cd browser-tests && npm test",
+                        )
+                        .with_env([
+                            ("DODECA_BIN", format!("{}/dist/ddc", workspace_var)),
+                            ("DODECA_CELL_PATH", format!("{}/dist", workspace_var)),
+                        ]),
+                    ]),
+            );
+        }
+
         // Assembly job: runs after integration, downloads all artifacts and creates archive
         let assemble_job_id = format!("assemble-{short}");
         let assemble_needs = vec![integration_job_id.clone(), wasm_job_id.clone()];
