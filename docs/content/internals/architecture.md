@@ -111,7 +111,7 @@ Instead:
 
 The host stores only **hashes** in picante:
 
-```rust,noexec
+```rust
 #[picante::input]
 pub struct StaticFile {
     #[key]

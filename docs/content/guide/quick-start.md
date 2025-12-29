@@ -73,7 +73,7 @@ ddc serve
 
 ## Code samples
 
-If the code execution helper is available (`ddc-cell-code-execution`), Rust code blocks in Markdown are compiled and executed:
+If the code execution helper is available (`ddc-cell-code-execution`), Rust code blocks marked with `,test` are compiled and executed:
 
 - In `ddc build`: failing code stops the build.
 - In `ddc serve`: failing code is reported as a warning.
@@ -81,16 +81,10 @@ If the code execution helper is available (`ddc-cell-code-execution`), Rust code
 Example:
 
 ````markdown
-```rust
+```rust,test
 let message = "Hello from dodeca!";
 println!("{}", message);
 ```
 ````
 
-To keep a block as Rust-highlighted but skip execution, use `rust,noexec`:
-
-````markdown
-```rust,noexec
-// not executed
-```
-````
+Plain `rust` blocks (without `,test`) are syntax-highlighted but not executed.

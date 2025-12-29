@@ -49,7 +49,7 @@ crate-type = ["cdylib", "rlib"]
 
 Mark functions with `#[plugcard]`:
 
-```rust,noexec
+```rust
 use plugcard::plugcard;
 
 #[plugcard]
@@ -69,7 +69,7 @@ The macro generates all FFI wrappers and registration code.
 
 For a function like:
 
-```rust,noexec
+```rust
 #[plugcard]
 pub fn add(a: i32, b: i32) -> i32 {
     a + b
@@ -78,7 +78,7 @@ pub fn add(a: i32, b: i32) -> i32 {
 
 The macro generates:
 
-```rust,noexec
+```rust
 // Original function preserved
 pub fn add(a: i32, b: i32) -> i32 { a + b }
 
@@ -111,7 +111,7 @@ static __PLUGCARD_SIG_add: MethodSignature = MethodSignature {
 
 #### `MethodSignature`
 
-```rust,noexec
+```rust
 pub struct MethodSignature {
     pub key: u64,           // Unique key from name + schemas
     pub name: &'static str, // Human-readable method name
@@ -125,7 +125,7 @@ pub struct MethodSignature {
 
 The FFI boundary structure:
 
-```rust,noexec
+```rust
 #[repr(C)]
 pub struct MethodCallData {
     pub key: u64,
@@ -140,7 +140,7 @@ pub struct MethodCallData {
 
 #### `MethodCallResult`
 
-```rust,noexec
+```rust
 #[repr(C)]
 pub enum MethodCallResult {
     Success,
@@ -300,7 +300,7 @@ The host accepts browser TCP connections and tunnels them through to the cell vi
 
 Rapace cells use trait-based protocol definitions with the `#[rapace::service]` macro:
 
-```rust,noexec
+```rust
 #[rapace::service]
 pub trait ContentService {
     async fn find_content(&self, path: String) -> ServeContent;

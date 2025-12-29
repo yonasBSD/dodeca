@@ -35,14 +35,15 @@ This page describes what’s currently implemented in dodeca (as shipped in this
 
 - **Rust code blocks** can be executed during the build (if `ddc-cell-code-execution` is available)
 - `ddc build` fails on execution errors; `ddc serve` reports them as warnings
-- Add `,noexec` to a fenced Rust code block to skip execution (for pseudo-code or intentionally failing examples)
+- Code execution is opt-in: add `,test` to a fenced Rust code block to execute it
 
-### Automatic Rust Validation
+### Rust Code Validation
 
-Any fenced Rust code block is treated as executable:
+Add `,test` to have a code block executed and validated:
 
-```rust
+```rust,test
 fn main() {
+    use std::collections::HashMap;
     let mut scores = HashMap::new();
     scores.insert("Alice", 10);
     scores.insert("Bob", 8);
@@ -57,7 +58,7 @@ fn main() {
 
 Code without a main function is automatically wrapped:
 
-```rust
+```rust,test
 let message = "Hello, world!";
 println!("{}", message);
 ```

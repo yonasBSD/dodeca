@@ -6,14 +6,14 @@ weight = 45
 
 dodeca can run code samples found in your Markdown files and report failures.
 
-This feature requires the code execution helper binary (`ddc-cell-code-execution`). If it isn’t present, code blocks will not be executed.
+This feature requires the code execution helper binary (`ddc-cell-code-execution`). If it isn't present, code blocks will not be executed.
 
 ## How it works
 
-When you write fenced code blocks like this:
+Code execution is **opt-in**. Add `,test` to your fenced code block to have it executed:
 
 ````markdown
-```rust
+```rust,test
 let name = "Alice";
 println!("Hello, {}!", name);
 ```
@@ -27,11 +27,11 @@ Behavior by command:
 
 ## What gets executed
 
-Right now, only fenced blocks whose language is exactly `rust` (or `rs`) are treated as executable. If you include extra tags (for example `rust,noexec`), the block will be skipped.
+Only fenced blocks marked with `rust,test` (or `rs,test`) are executed. Plain `rust` blocks are syntax-highlighted but not run.
 
 ### Simple examples
 
-```rust
+```rust,test
 let x = 5 + 3;
 println!("Result: {}", x);
 ```
@@ -40,7 +40,7 @@ This gets wrapped in a `main()` function automatically.
 
 ### Complete programs
 
-```rust
+```rust,test
 fn greet(name: &str) {
     println!("Hello, {}!", name);
 }
@@ -52,18 +52,18 @@ fn main() {
 
 This runs as-is.
 
-## Skipping execution
+## Display-only code
 
-Sometimes you don't want code to run (pseudo-code, broken examples for teaching, etc.):
+Plain `rust` blocks are not executed - use them for pseudo-code, incomplete examples, or code you don't want validated:
 
 ````markdown
-```rust,noexec
-// This won't be executed
+```rust
+// This won't be executed - just displayed
 let broken_code = does_not_compile();
 ```
 ````
 
-Or disable code execution globally by setting `DODECA_NO_CODE_EXEC=1` in the environment.
+You can also disable code execution globally by setting `DODECA_NO_CODE_EXEC=1` in the environment.
 
 ## When builds fail
 
@@ -80,8 +80,8 @@ Fix the code and rebuild. In development mode (`ddc serve`), failures are report
 
 There is a `code_execution { ... }` section in the config schema, but it is not fully applied by the build yet (defaults are used). If you need to control execution today, use:
 
-- `DODECA_NO_CODE_EXEC=1` to disable
-- `rust,noexec` on individual blocks to skip
+- `DODECA_NO_CODE_EXEC=1` to disable globally
+- Use plain `rust` (without `,test`) for blocks you don't want executed
 
 ## Best practices
 
