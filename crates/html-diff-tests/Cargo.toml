@@ -1,0 +1,14 @@
+[package]
+name = "html-diff-tests"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+dodeca-protocol = { path = "../dodeca-protocol" }
+facet.workspace = true
+facet-diff.workspace = true
+facet-format-html.workspace = true
+
+[dev-dependencies]
+facet-json.workspace = true
