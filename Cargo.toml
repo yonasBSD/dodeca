@@ -38,7 +38,7 @@ axum = { version = "0.8", features = ["ws"] }
 hyper = { version = "1", features = ["server", "http1"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
 if-addrs = "0.14"
-reqwest = { version = "0.12", features = ["blocking", "rustls-tls"] }
+reqwest = { version = "0.13", features = ["blocking"] }
 ureq = { version = "3", default-features = false }
 
 # Logging/tracing
@@ -74,7 +74,7 @@ tempfile = "3.24"
 
 # CLI/TUI
 crossterm = "0.29"
-dialoguer = "0.11"
+dialoguer = "0.12"
 include_dir = "0.7"
 owo-colors = "4"
 ratatui = "0.30"
