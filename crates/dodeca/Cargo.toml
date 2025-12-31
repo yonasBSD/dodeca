@@ -68,7 +68,7 @@ futures-util.workspace = true
 if-addrs.workspace = true
 ignore.workspace = true
 include_dir.workspace = true
-miette.workspace = true
+miette = { workspace = true, features = ["fancy-no-backtrace"] }
 notify.workspace = true
 open.workspace = true
 owo-colors.workspace = true
@@ -87,6 +87,7 @@ tokio-stream.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 ur-taking-me-with-you.workspace = true
+miette-arborium = "2.4.7"
 
 [dev-dependencies]
 divan.workspace = true

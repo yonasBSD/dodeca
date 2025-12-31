@@ -369,9 +369,7 @@ fn main() -> Result<()> {
         ur_taking_me_with_you::die_with_parent();
     }
 
-    miette::set_hook(Box::new(
-        |_| Box::new(miette::GraphicalReportHandler::new()),
-    ))?;
+    miette_arborium::install_global()?;
 
     let command = parse_args()?;
 
