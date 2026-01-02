@@ -17,6 +17,7 @@ pub use dodeca_code_execution_config::{
 #[derive(Facet, Debug, Clone, PartialEq, Eq)]
 pub struct CodeExecutionConfig {
     /// Enable code sample execution
+    #[facet(kdl::child)]
     pub enabled: bool,
     /// Fail build on execution errors (vs just warnings in dev)
     pub fail_on_error: bool,
