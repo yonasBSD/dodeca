@@ -75,7 +75,7 @@ impl CodeExecutor for CodeExecutorImpl {
     async fn execute_code_samples(&self, input: ExecuteSamplesInput) -> CodeExecutionResult {
         let mut results = Vec::new();
 
-        if !input.config.enabled {
+        if !input.config.is_enabled() {
             return CodeExecutionResult::ExecuteSuccess {
                 output: ExecuteSamplesOutput { results },
             };

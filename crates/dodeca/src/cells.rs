@@ -1819,7 +1819,7 @@ pub async fn has_linkcheck_cell() -> bool {
 pub async fn extract_code_samples_cell(
     content: &str,
     source_path: &str,
-) -> Option<Vec<dodeca_code_execution_types::CodeSample>> {
+) -> Option<Vec<cell_code_execution_proto::CodeSample>> {
     let cell = all().await.code_execution.as_ref()?;
 
     let input = ExtractSamplesInput {
@@ -1848,12 +1848,12 @@ pub async fn extract_code_samples_cell(
 ///
 /// Returns None if cell is not loaded.
 pub async fn execute_code_samples_cell(
-    samples: Vec<dodeca_code_execution_types::CodeSample>,
-    config: dodeca_code_execution_types::CodeExecutionConfig,
+    samples: Vec<cell_code_execution_proto::CodeSample>,
+    config: cell_code_execution_proto::CodeExecutionConfig,
 ) -> Option<
     Vec<(
-        dodeca_code_execution_types::CodeSample,
-        dodeca_code_execution_types::ExecutionResult,
+        cell_code_execution_proto::CodeSample,
+        cell_code_execution_proto::ExecutionResult,
     )>,
 > {
     let cell = all().await.code_execution.as_ref()?;

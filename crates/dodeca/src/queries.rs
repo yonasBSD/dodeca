@@ -1547,7 +1547,7 @@ pub async fn execute_all_code_samples<DB: Db>(db: &DB) -> PicanteResult<Vec<Code
     let mut all_results = Vec::new();
 
     // Create default configuration for code execution
-    let config = dodeca_code_execution_types::CodeExecutionConfig::default();
+    let config = cell_code_execution_proto::CodeExecutionConfig::default();
 
     // Extract and execute code samples from all source files
     let sources = SourceRegistry::sources(db)?.unwrap_or_default();
@@ -1593,13 +1593,13 @@ pub async fn execute_all_code_samples<DB: Db>(db: &DB) -> PicanteResult<Vec<Code
                         language: sample.language,
                         code: sample.code,
                         status: match result.status {
-                            dodeca_code_execution_types::ExecutionStatus::Success => {
+                            cell_code_execution_proto::ExecutionStatus::Success => {
                                 crate::db::CodeExecutionStatus::Success
                             }
-                            dodeca_code_execution_types::ExecutionStatus::Failed => {
+                            cell_code_execution_proto::ExecutionStatus::Failed => {
                                 crate::db::CodeExecutionStatus::Failed
                             }
-                            dodeca_code_execution_types::ExecutionStatus::Skipped => {
+                            cell_code_execution_proto::ExecutionStatus::Skipped => {
                                 crate::db::CodeExecutionStatus::Skipped
                             }
                         },
@@ -1655,9 +1655,9 @@ pub async fn execute_all_code_samples<DB: Db>(db: &DB) -> PicanteResult<Vec<Code
 
 /// Convert cell DependencySource to db DependencySourceInfo
 fn convert_dependency_source(
-    source: dodeca_code_execution_types::DependencySource,
+    source: cell_code_execution_proto::DependencySource,
 ) -> DependencySourceInfo {
-    use dodeca_code_execution_types::DependencySource;
+    use cell_code_execution_proto::DependencySource;
     match source {
         DependencySource::CratesIo => DependencySourceInfo::CratesIo,
         DependencySource::Git { url, commit } => DependencySourceInfo::Git { url, commit },

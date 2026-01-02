@@ -45,7 +45,6 @@ cell-sass-proto = { path = "../../cells/cell-sass-proto" }
 cell-svgo-proto = { path = "../../cells/cell-svgo-proto" }
 cell-tui-proto = { path = "../../cells/cell-tui-proto" }
 cell-webp-proto = { path = "../../cells/cell-webp-proto" }
-dodeca-code-execution-types = { path = "../dodeca-code-execution-types" }
 dodeca-debug = { path = "../dodeca-debug" }
 dodeca-protocol = { path = "../dodeca-protocol" }
 gingembre = { path = "../gingembre" }

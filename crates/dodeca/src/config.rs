@@ -12,7 +12,7 @@ use std::fs;
 use std::sync::OnceLock;
 
 // Re-export shared config types
-pub use dodeca_code_execution_types::KdlCodeExecutionConfig as CodeExecutionConfig;
+pub use cell_code_execution_proto::CodeExecutionConfig;
 
 /// Configuration file name
 const CONFIG_DIR: &str = ".config";
