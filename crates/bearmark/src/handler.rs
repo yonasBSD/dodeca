@@ -8,7 +8,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use crate::Result;
-use crate::rules::RuleDefinition;
+use crate::reqs::ReqDefinition;
 
 /// A handler for rendering code blocks.
 ///
@@ -54,71 +54,71 @@ pub trait CodeBlockHandler: Send + Sync {
 /// Type alias for a boxed code block handler.
 pub type BoxedHandler = Arc<dyn CodeBlockHandler>;
 
-/// A handler for rendering rule definitions.
+/// A handler for rendering req definitions.
 ///
-/// Implementations can provide custom rule rendering with additional context
-/// such as coverage status, implementation references, etc.
-///
-/// # Example
-///
-/// ```rust,ignore
-/// use bearmark::{RuleHandler, RuleDefinition, Result};
-///
-/// struct TraceyRuleHandler {
-///     coverage: Arc<RuleCoverage>,
-/// }
-///
-/// impl RuleHandler for TraceyRuleHandler {
-///     fn render<'a>(
-///         &'a self,
-///         rule: &'a RuleDefinition,
-///     ) -> Pin<Box<dyn Future<Output = Result<String>> + Send + 'a>> {
-///         Box::pin(async move {
-///             let status = self.coverage.get(&rule.id);
-///             // Render with covered/uncovered class, impl/verify links, etc.
-///             Ok(format!("<div class=\"rule {}\" id=\"{}\">...</div>",
-///                 if status.is_covered() { "covered" } else { "uncovered" },
-///                 rule.anchor_id))
-///         })
-///     }
-/// }
-/// ```
-pub trait RuleHandler: Send + Sync {
-    /// Render a rule definition to HTML.
+/// Reqs are rendered with opening and closing HTML, allowing the req content
+/// (paragraphs, code blocks, etc.) to be rendered in between.
+pub trait ReqHandler: Send + Sync {
+    /// Render the opening HTML for a req definition.
+    ///
+    /// This is called when a req is first detected. The returned HTML should
+    /// contain the opening tags that will wrap the req content.
     ///
     /// # Arguments
-    /// * `rule` - The rule definition containing id and anchor_id
+    /// * `req` - The req definition containing id, anchor_id, metadata, etc.
     ///
     /// # Returns
-    /// The rendered HTML string, or an error if rendering fails.
-    fn render<'a>(
+    /// The opening HTML string (e.g., `<div class="req" id="r-my.req">`).
+    fn start<'a>(
         &'a self,
-        rule: &'a RuleDefinition,
+        req: &'a ReqDefinition,
+    ) -> Pin<Box<dyn Future<Output = Result<String>> + Send + 'a>>;
+
+    /// Render the closing HTML for a req definition.
+    ///
+    /// This is called when the req content is finished. The returned HTML
+    /// should close any tags opened by `start`.
+    ///
+    /// # Arguments
+    /// * `req` - The req definition (same as passed to `start`)
+    ///
+    /// # Returns
+    /// The closing HTML string (e.g., `</div>`).
+    fn end<'a>(
+        &'a self,
+        req: &'a ReqDefinition,
     ) -> Pin<Box<dyn Future<Output = Result<String>> + Send + 'a>>;
 }
 
-/// Type alias for a boxed rule handler.
-pub type BoxedRuleHandler = Arc<dyn RuleHandler>;
+/// Type alias for a boxed req handler.
+pub type BoxedReqHandler = Arc<dyn ReqHandler>;
 
-/// Default rule handler that renders simple anchor divs.
+/// Default req handler that renders simple anchor divs.
 ///
-/// This is used when no custom rule handler is registered.
-pub struct DefaultRuleHandler;
+/// This is used when no custom req handler is registered.
+pub struct DefaultReqHandler;
 
-impl RuleHandler for DefaultRuleHandler {
-    fn render<'a>(
+impl ReqHandler for DefaultReqHandler {
+    fn start<'a>(
         &'a self,
-        rule: &'a RuleDefinition,
+        req: &'a ReqDefinition,
     ) -> Pin<Box<dyn Future<Output = Result<String>> + Send + 'a>> {
         Box::pin(async move {
             // Insert <wbr> after dots for better line breaking in narrow displays
-            let display_id = rule.id.replace('.', ".<wbr>");
+            let display_id = req.id.replace('.', ".<wbr>");
 
             Ok(format!(
-                "<div class=\"rule\" id=\"{}\"><a class=\"rule-link\" href=\"#{}\" title=\"{}\"><span>[{}]</span></a></div>",
-                rule.anchor_id, rule.anchor_id, rule.id, display_id
+                "<div class=\"req\" id=\"{}\"><a class=\"req-link\" href=\"#{}\" title=\"{}\"><span>[{}]</span></a>",
+                req.anchor_id, req.anchor_id, req.id, display_id
             ))
         })
+    }
+
+    fn end<'a>(
+        &'a self,
+        _req: &'a ReqDefinition,
+    ) -> Pin<Box<dyn Future<Output = Result<String>> + Send + 'a>> {
+        Box::pin(async move { Ok("</div>".to_string()) })
     }
 }
 
